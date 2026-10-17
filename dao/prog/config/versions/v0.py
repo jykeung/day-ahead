@@ -102,6 +102,15 @@ class ConfigurationV0(DAOConfigBaseModel):
         description="Forecast components replaced by native optimization; must exactly match configured native loads",
     )
 
+    entity_flexible_requirements: str | None = Field(
+        default=None, alias="entity flexible requirements",
+        description="Fresh HA requirements for joint shadow appliance planning",
+    )
+    flexible_components: list[str] = Field(
+        default_factory=list, alias="flexible components",
+        description="Shadow models: car, hot_water, dehumidifier",
+    )
+
     # Plan export
     entity_plan: str | None = Field(
         default=None,
@@ -346,7 +355,7 @@ class ConfigurationV0(DAOConfigBaseModel):
             if self.load_forecast_excludes:
                 raise ValueError("load forecast excludes requires entity load forecast")
             return self
-        native = []
+        native = list(self.flexible_components)
         if self.electric_vehicle:
             native.append("car")
         if self.heating and self.heating.heater_present:
@@ -364,6 +373,21 @@ class ConfigurationV0(DAOConfigBaseModel):
         if set(native) != set(self.load_forecast_excludes):
             raise ValueError("Total load forecast already includes appliances; load forecast excludes "
                              "must exactly match native components: " + ", ".join(native))
+        return self
+
+    @model_validator(mode="after")
+    def flexible_shadow_requirements(self) -> "ConfigurationV0":
+        if bool(self.flexible_components) != bool(self.entity_flexible_requirements):
+            raise ValueError("Flexible components require entity flexible requirements")
+        if not set(self.flexible_components) <= {"car", "hot_water", "dehumidifier"}:
+            raise ValueError("Unsupported flexible component")
+        if len(set(self.flexible_components)) != len(self.flexible_components):
+            raise ValueError("Duplicate flexible component")
+        if self.flexible_components:
+            if not self.entity_load_forecast:
+                raise ValueError("Flexible loads require component-separated total forecast")
+            if not self.entity_plan or self.entity_plan == "sensor.dao_plan":
+                raise ValueError("Flexible loads need a separate shadow plan entity")
         return self
 
     @model_validator(mode="after")

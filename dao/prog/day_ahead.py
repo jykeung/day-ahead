@@ -135,6 +135,7 @@ class DaCalc(DaBase):
         _start_dt: dt.datetime | None = None,
         _start_soc: float | None = None,
         _start_ev_soc: float | None = None,
+        *, planning_time: dt.datetime | None = None,
     ):
         # _start_dt = dt.datetime(year=2026, month=5, day=24, hour=11, minute=0)
         # _start_soc = 78.0
@@ -143,7 +144,7 @@ class DaCalc(DaBase):
             self.debug = True
         logging.info(f"Debug = {self.debug}")
         if _start_dt is None:
-            start_dt = dt.datetime.now()
+            start_dt = planning_time or dt.datetime.now()
         else:
             start_dt = _start_dt
         # om te testen met afwijkende startdatum/tijd
@@ -2449,7 +2450,8 @@ class DaCalc(DaBase):
                             "Geen entity om gem. temperatuur te exporteren"
                         )
                     else:
-                        self.set_value(entity_avg_temp, round(avg_temp, 1))
+                        if not self.config.flexible_components:
+                            self.set_value(entity_avg_temp, round(avg_temp, 1))
                     logging.info(
                         f"Voorspelde gemiddelde buiten temperatuur: {avg_temp:.1f} °C"
                     )
@@ -3326,6 +3328,20 @@ class DaCalc(DaBase):
                     + xsum(p_ev[e][u] for e in range(EV))
             )
         """
+        # Flexible appliance constraints share the existing battery, PV, grid
+        # and capacity-tariff objective. This path exports a shadow plan only.
+        flexible_energy, flexible_states = {}, {}
+        if self.config.flexible_components:
+            from dao.prog.flexible_loads import add_flexible_loads, validate_payload
+            if load_forecast_covered != U:
+                raise ValueError("Flexible planning requires a complete component forecast")
+            requirements = self.get_state(self.config.entity_flexible_requirements).attributes or {}
+            devices = validate_payload(requirements, self.config.flexible_components,
+                                       dt.datetime.now(dt.timezone.utc))
+            flexible_energy, flexible_states = add_flexible_loads(
+                model, tijd, hour_fraction, devices, self.time_zone)
+        flexible_total = [xsum(values[u] for values in flexible_energy.values()) for u in range(U)]
+
         #####################################################
         # alle verbruiken in de totaal balans in kWh
         #####################################################
@@ -3342,6 +3358,7 @@ class DaCalc(DaBase):
                 + xsum(c_ev[e][u] for e in range(EV))
                 + c_hp[u]
                 + xsum(c_ma_u[m][u] for m in range(M))
+                + flexible_total[u]
                 - xsum(pv_ac[s][u] for s in range(solar_num))
             )
 
@@ -3827,7 +3844,7 @@ class DaCalc(DaBase):
                     sum_soc += one_soc[b] * row[b + 3]
                 df_soc.at[row[0], "soc"] = round(100 * sum_soc / sum_cap, 1)
 
-            if not self.debug:
+            if not self.debug and not self.config.flexible_components:
                 self.save_df(tablename="prognoses", tijd=tijd_soc, df=df_soc)
 
         # voorspelling pv_dc opslaan.
@@ -3841,7 +3858,7 @@ class DaCalc(DaBase):
                     prod_pc_sum += pv_prod_dc_sum[b][u].x * hour_fraction[u]
                 row_pv_dc = [tijd_pv[u], prod_pc_sum]
                 df_pv_dc.loc[df_pv_dc.shape[0]] = row_pv_dc
-            if not self.debug:
+            if not self.debug and not self.config.flexible_components:
                 self.save_df(tablename="prognoses", tijd=tijd_pv, df=df_pv_dc)
 
         """
@@ -3902,7 +3919,8 @@ class DaCalc(DaBase):
             if interval_fraction_first_interval < 0.99:  # drop first row
                 d_f_save = d_f_save.iloc[1:]
                 save_tijd = save_tijd[1:]
-            self.save_df(tablename="prognoses", tijd=save_tijd, df=d_f_save)
+            if not self.config.flexible_components:
+                self.save_df(tablename="prognoses", tijd=save_tijd, df=d_f_save)
         else:
             logging.info("Berekende prognoses zijn niet opgeslagen.")
 
@@ -3910,7 +3928,8 @@ class DaCalc(DaBase):
         if entity_plan:
             from dao.prog.plan_export import build_plan_rows
 
-            device_energy = {}
+            device_energy = {key: [value.x for value in values]
+                             for key, values in flexible_energy.items()}
             if self.heating_options and self.heating_options.heater_present:
                 device_energy["space_heating"] = [c_hp[u].x for u in range(U)]
             if self.boiler_options and self.boiler_options.boiler_present:
@@ -3926,6 +3945,7 @@ class DaCalc(DaBase):
             load_kwh = [
                 b_l[u] * interval_fraction[u] + c_b[u].x + c_hp[u].x + c_ev_sum[u]
                 + (c_ma_sum[u] if M > 0 else 0.0)
+                + sum(values[u].x for values in flexible_energy.values())
                 for u in range(U)
             ]
             plan_rows = build_plan_rows(
@@ -3956,6 +3976,8 @@ class DaCalc(DaBase):
                         {
                             "plan": plan_rows,
                             "optimized_devices": list(device_energy),
+                            "shadow_only": bool(self.config.flexible_components),
+                            "device_states": {key: [v.x for v in values] for key, values in flexible_states.items()},
                             "friendly_name": "DAO plan",
                             "icon": "mdi:chart-timeline-variant",
                             "load_forecast_entity": load_forecast_entity,
@@ -3968,6 +3990,15 @@ class DaCalc(DaBase):
                     logging.info(f"Plan met {len(plan_rows)} intervallen gezet op {entity_plan}")
                 except Exception as ex:
                     logging.warning(f"Plan niet naar {entity_plan} geschreven: {ex}")
+
+        if self.config.flexible_components:
+            logging.info("Joint appliance shadow plan exported; actuator outputs skipped")
+            return {"plan": plan_rows, "objective_eur": cost.x,
+                    "grid_cost_eur": sum(c_l[u].x * pl[u] - c_t[u].x * pt[u] for u in range(U)),
+                    "import_kwh": sum(c_l[u].x for u in range(U)),
+                    "export_kwh": sum(c_t[u].x for u in range(U)),
+                    "estimated_price_intervals": sum(row["price_estimated"] for row in plan_rows),
+                    "shadow_only": True}
 
         d_f = d_f.astype({"uur": str})
         d_f.loc["total"] = d_f.iloc[:, 1:].sum()
