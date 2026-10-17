@@ -3271,6 +3271,20 @@
       "x-ui-group": "DAO",
       "x-ui-section": "Weather"
     },
+    "entity load forecast": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Read-only HA forecast of total house demand, replacing baseload",
+      "title": "Entity Load Forecast",
+      "x-help": "Entity attributes: generated_at (ISO timestamp), schedule rows with start, end (ISO timestamps) and power_kw. Includes all loads except battery charging. Data older than 30 minutes or missing coverage falls back to baseload. Do not also enable native optimization of loads included here."
+    },
     "entity plan": {
       "anyOf": [
         {

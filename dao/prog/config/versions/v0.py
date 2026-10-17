@@ -86,6 +86,17 @@ class ConfigurationV0(DAOConfigBaseModel):
         },
     )
 
+    entity_load_forecast: str | None = Field(
+        default=None,
+        alias="entity load forecast",
+        description="Read-only HA forecast of total house demand, replacing baseload",
+        json_schema_extra={"x-help": "Entity attributes: generated_at (ISO timestamp), "
+                           "schedule rows with start, end (ISO timestamps) and power_kw. "
+                           "Includes all loads except battery charging. Data older than "
+                           "30 minutes or missing coverage falls back to baseload. "
+                           "Do not also enable native optimization of loads included here."},
+    )
+
     # Plan export
     entity_plan: str | None = Field(
         default=None,
@@ -323,6 +334,17 @@ class ConfigurationV0(DAOConfigBaseModel):
         populate_by_name=True,  # Allow both snake_case and aliases
         loc_by_alias=False,
     )
+
+    @model_validator(mode="after")
+    def total_load_forecast_excludes_native_loads(self) -> "ConfigurationV0":
+        if self.entity_load_forecast and (
+            self.electric_vehicle or self.machines
+            or (self.heating and self.heating.heater_present)
+            or (self.boiler and self.boiler.boiler_present)
+        ):
+            raise ValueError("Total load forecast already includes appliances; "
+                             "disable native heating, boiler, EV and machine optimization")
+        return self
 
     @model_validator(mode="after")
     def meteoserver_needs_key(self) -> "ConfigurationV0":

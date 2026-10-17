@@ -488,6 +488,26 @@ class DaCalc(DaBase):
             b_l = b_l[:-1]
         while len(b_l) < len(uur):
             b_l.append(b_l[-1])
+        # A total-house forecast replaces (never adds to) the baseline. This is
+        # read-only; existing HA automations retain ownership of these loads.
+        load_forecast_entity = getattr(self.config, "entity_load_forecast", None)
+        load_forecast_covered = 0
+        if load_forecast_entity:
+            from dao.prog.load_forecast import forecast_baseload
+
+            try:
+                attributes = self.get_state(load_forecast_entity).attributes or {}
+                b_l, load_forecast_covered = forecast_baseload(
+                    attributes, tijd, self.interval_s, b_l,
+                    getattr(self, "time_zone", None), dt.datetime.now(dt.timezone.utc),
+                )
+                logging.info(
+                    f"House demand from {load_forecast_entity}: "
+                    f"{load_forecast_covered}/{len(tijd)} intervals"
+                )
+            except (AttributeError, KeyError, TypeError, ValueError) as ex:
+                logging.warning(f"Load forecast unavailable; using baseload: {ex}")
+
         # p_avg1 = sum(pl) / U  # max(pl) #
         sum_w_prices = 0
         sum_hf = 0
@@ -3902,7 +3922,7 @@ class DaCalc(DaBase):
                     self.set_state(
                         entity_plan,
                         dt.datetime.now().astimezone().isoformat(timespec="seconds"),
-                        {"plan": plan_rows, "friendly_name": "DAO plan", "icon": "mdi:chart-timeline-variant"},
+                        {"plan": plan_rows, "friendly_name": "DAO plan", "icon": "mdi:chart-timeline-variant", "load_forecast_entity": load_forecast_entity, "load_forecast_intervals": load_forecast_covered},
                     )
                     logging.info(f"Plan met {len(plan_rows)} intervallen gezet op {entity_plan}")
                 except Exception as ex:
