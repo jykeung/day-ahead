@@ -35,7 +35,12 @@ def forecast_baseload(attributes, times, interval_seconds, fallback, time_zone, 
         raise ValueError('Overlapping load forecast intervals')
     covered = 0
     zone = ZoneInfo(time_zone) if time_zone else now.tzinfo
+    widths = ([interval_seconds] * len(times) if isinstance(interval_seconds, (int, float))
+              else list(interval_seconds))
+    if len(widths) != len(times) or any(width <= 0 for width in widths):
+        raise ValueError("Invalid forecast interval durations")
     for i, value in enumerate(times):
+        interval_seconds = widths[i]
         start = value.replace(tzinfo=zone).timestamp() if value.tzinfo is None else value.timestamp()
         end = start + interval_seconds
         seconds = energy = 0.0

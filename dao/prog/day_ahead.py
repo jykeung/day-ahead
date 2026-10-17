@@ -188,6 +188,9 @@ class DaCalc(DaBase):
                 start_prediction_dt, end=None, interval="1hour",
                 extension=horizon_extension
             )
+            if pred_price_data.empty:
+                logging.error("No predicted prices available for the extended planning horizon")
+                return False
             price_data = pd.concat([fixed_price_data, pred_price_data])
         else:
             price_data = fixed_price_data
@@ -257,11 +260,13 @@ class DaCalc(DaBase):
 
         self.notify("DAO calc gestart")
 
-        prog_data = prog_data.reset_index(drop=True)
-        price_data = price_data.reset_index(drop=True)
-        prog_data["da_ex"] = price_data["da_ex"]
-        prog_data["da_cons"] = price_data["da_cons"]
-        prog_data["da_prod"] = price_data["da_prod"]
+        # Weather can start later than prices; align actual interval starts.
+        from dao.prog.planning_horizon import align_weather_prices
+
+        prog_data = align_weather_prices(prog_data, price_data)
+        if prog_data.empty:
+            logging.error("No overlapping weather and price intervals")
+            return False
 
         logging.debug(f"Prognose data:\n{prog_data.to_string()}")
         pd.options.display.float_format = "{:.3f}".format
@@ -340,6 +345,14 @@ class DaCalc(DaBase):
             prediction = self.solar[s].ml_prediction
             solar_ml_prediction.append(prediction)
         time_first_interval = prog_data["tijd"].iloc[0]
+        if time_first_interval > start_interval_dt:
+            # A future row represents its complete interval, not the remainder
+            # of the current quarter that has no weather data.
+            interval_fraction_first_interval = 1.0
+            hour_fraction_first_interval = (
+                1.0 if horizon_extension > 0 and time_first_interval >= start_prediction_dt
+                else self.interval_s / 3600
+            )
         if self.interval == "1hour":
             first_interval_nr = int(time_first_interval.hour)
         else:
@@ -452,7 +465,7 @@ class DaCalc(DaBase):
             global_rad.append(gr)
             pv_total = 0
             if first_interval:
-                ts.append(start_ts)
+                ts.append(max(start_ts, int(row.time)))
                 hour_fraction.append(hour_fraction_first_interval)
                 interval_fraction.append(interval_fraction_first_interval)
             else:
@@ -498,7 +511,8 @@ class DaCalc(DaBase):
             try:
                 attributes = self.get_state(load_forecast_entity).attributes or {}
                 b_l, load_forecast_covered = forecast_baseload(
-                    attributes, tijd, self.interval_s, b_l,
+                    attributes, tijd,
+                    [hour_fraction[u] / interval_fraction[u] * 3600 for u in range(U)], b_l,
                     getattr(self, "time_zone", None), dt.datetime.now(dt.timezone.utc),
                 )
                 logging.info(
@@ -3915,6 +3929,8 @@ class DaCalc(DaBase):
                 price_sell=pt,
                 time_zone=getattr(self, "time_zone", None),
             )
+            for u, plan_row in enumerate(plan_rows):
+                plan_row["price_estimated"] = bool(tijd[u] >= end_fixed_dt)
             if self.debug:
                 logging.info(f"Plan met {len(plan_rows)} intervallen zou naar {entity_plan} gaan")
             else:
@@ -3922,7 +3938,16 @@ class DaCalc(DaBase):
                     self.set_state(
                         entity_plan,
                         dt.datetime.now().astimezone().isoformat(timespec="seconds"),
-                        {"plan": plan_rows, "friendly_name": "DAO plan", "icon": "mdi:chart-timeline-variant", "load_forecast_entity": load_forecast_entity, "load_forecast_intervals": load_forecast_covered},
+                        {
+                            "plan": plan_rows,
+                            "friendly_name": "DAO plan",
+                            "icon": "mdi:chart-timeline-variant",
+                            "load_forecast_entity": load_forecast_entity,
+                            "load_forecast_intervals": load_forecast_covered,
+                            "estimated_price_intervals": sum(row["price_estimated"] for row in plan_rows),
+                            "published_prices_end": end_fixed_dt.isoformat(),
+                            "planning_end": (tijd[-1] + dt.timedelta(hours=hour_fraction[-1])).isoformat(),
+                        },
                     )
                     logging.info(f"Plan met {len(plan_rows)} intervallen gezet op {entity_plan}")
                 except Exception as ex:
