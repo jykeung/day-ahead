@@ -1,9 +1,9 @@
 ---
-name: 刀 Day Ahead Optimizer
-version: 2026.9.1
+name: 刀 Day Ahead Optimizer (HOAS fork)
+version: 2026.9.1-hoas.1
 slug: day_ahead_opt
 description: Home Assistant Community Add-ons for day ahead optimizations
-url: https://github.com/corneel27/day-ahead
+url: https://github.com/jykeung/day-ahead
 arch:
   - aarch64
   - amd64
@@ -26,4 +26,4 @@ options:
   use_self_compiled_miplib: false
 schema:
   use_self_compiled_miplib: bool?
-image: "ghcr.io/corneel27/dao"
+# No prebuilt image: the Supervisor builds this fork from dao/Dockerfile on the box.
