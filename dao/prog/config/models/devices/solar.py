@@ -192,6 +192,24 @@ class SolarConfig(BaseModel):
             "x-ui-widget-filter": "sensor",
         },
     )
+    entity_pv_limit: EntityId | None = Field(
+        default=None,
+        alias="entity pv limit",
+        description="HA entity receiving the planned PV output limit in kW",
+        json_schema_extra={
+            "x-help": "Optional: makes this installation continuously curtailable. "
+            "Instead of only on/off (entity pv switch), the optimizer may plan any AC "
+            "output between 0 and the forecast - e.g. covering your own consumption "
+            "while exporting nothing when the feed-in price is negative. DAO writes the "
+            "planned maximum AC output for the coming interval (kW) to this entity; it "
+            "writes the installation's max power (or capacity) when no curtailment is "
+            "planned. Act on it with an automation, e.g. by switching the inverter to "
+            "zero export or setting its active power limit.",
+            "x-unit": "kW",
+            "x-ui-section": "Panel Orientation",
+            "x-ui-widget-filter": "input_number",
+        },
+    )
     max_power: float | None = Field(
         default=None,
         alias="max power",

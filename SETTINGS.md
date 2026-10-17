@@ -320,6 +320,7 @@ For panels facing different directions, use the 'strings' configuration:
 | `ml_prediction` | boolean | No | `false` | Use ML model to predict solar production for this installation |
 | `ml_training_start_date` | string (optional) | No | `"2000-01-01"` | If configured the ml-traning of the solar model will be trained with the data since the start date |
 | `entities sensors` | list[[EntityId](#entityid)] | No | `null` | HA sensor entities for measuring actual solar production |
+| `entity pv limit` | [EntityId](#entityid) (optional) | No | `null` | HA entity receiving the planned PV output limit in kW (Unit: `kW`) |
 | `max power` | number (optional) | No | `null` | Maximum output power cap in kW (MPPT limit) (Unit: `kW`) |
 
 <details>
@@ -364,6 +365,10 @@ The ml-training will be restricted to the data since the start date with a maxim
 **`entities sensors`**
 
 Optional: Home Assistant sensor entity (or list of entities) measuring actual solar production. Used for reporting and ML model training.
+
+**`entity pv limit`**
+
+Optional: makes this installation continuously curtailable. Instead of only on/off (entity pv switch), the optimizer may plan any AC output between 0 and the forecast - e.g. covering your own consumption while exporting nothing when the feed-in price is negative. DAO writes the planned maximum AC output for the coming interval (kW) to this entity; it writes the installation's max power (or capacity) when no curtailment is planned. Act on it with an automation, e.g. by switching the inverter to zero export or setting its active power limit.
 
 **`max power`**
 
