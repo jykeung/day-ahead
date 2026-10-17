@@ -119,6 +119,17 @@ class DaCalc(DaBase):
             value /= 1000
         return max(value, 0.0)
 
+    @staticmethod
+    def solar_unlimited_kw(solar_option) -> float:
+        """What 'no curtailment' means for an installation, in kW: its max
+        power when set, else its capacity (summed over strings)."""
+        if solar_option.max_power:
+            return float(solar_option.max_power)
+        strings = getattr(solar_option, "strings", None) or []
+        if strings:
+            return float(sum(s.capacity or 0.0 for s in strings))
+        return float(solar_option.capacity or 0.0)
+
     def calc_optimum(
         self,
         _start_dt: dt.datetime | None = None,
@@ -311,6 +322,7 @@ class DaCalc(DaBase):
         # 0.015 kWh/J/cm² productie van mijn panelen per J/cm²
         solar_prod = []
         entity_pv_ac_switch = []
+        entity_pv_limit = []
         max_solar_power = []
         pv_ac_varcode = []
         solar_ml_prediction = []
@@ -323,6 +335,7 @@ class DaCalc(DaBase):
             if entity == "":
                 entity = None
             entity_pv_ac_switch.append(entity)
+            entity_pv_limit.append(getattr(self.solar[s], "entity_pv_limit", None) or None)
             max_solar_power.append(self.solar[s].max_power)
             prediction = self.solar[s].ml_prediction
             solar_ml_prediction.append(prediction)
@@ -534,12 +547,17 @@ class DaCalc(DaBase):
         ]
 
         # constraints
+        # Een begrensbare installatie (entity pv limit) mag elk vermogen tussen 0
+        # en de prognose leveren (ub van pv_ac); de aan/uit-binary doet dan niet mee.
         for s in range(solar_num):
             for u in range(U):
+                if entity_pv_limit[s] is not None:
+                    model += pv_ac_on_off[s][u] == 1
+                    continue
                 model += pv_ac[s][u] == solar_prod[s][u] * pv_ac_on_off[s][u]
                 model += pv_ac_on_off[s][u] + solar_prod[s][u] >= 1
         for s in range(solar_num):
-            if entity_pv_ac_switch[s] is None:
+            if entity_pv_ac_switch[s] is None and entity_pv_limit[s] is None:
                 for u in range(U):
                     model += pv_ac_on_off[s][u] == 1
 
@@ -4282,6 +4300,23 @@ class DaCalc(DaBase):
                             else:
                                 self.turn_off(entity_pv_switch)
                                 logging.info(f"PV {pv_name} uitgezet")
+
+            # begrenzing pv-vermogen (continu)
+            for s in range(solar_num):
+                if entity_pv_limit[s] is None:
+                    continue
+                pv_name = self.solar[s].name
+                unlimited_kw = self.solar_unlimited_kw(self.solar[s])
+                planned = pv_ac[s][0].x
+                if solar_prod[s][0] > 0 and planned < solar_prod[s][0] * 0.99:
+                    limit_kw = round(max(planned, 0.0) / hour_fraction[0], 3)
+                else:
+                    limit_kw = unlimited_kw
+                if self.debug:
+                    logging.info(f"PV {pv_name} begrenzing zou zijn gezet op {limit_kw} kW")
+                else:
+                    self.set_value(entity_pv_limit[s], limit_kw)
+                    logging.info(f"PV {pv_name} begrenzing gezet op {limit_kw} kW")
 
             ############################################
             # battery

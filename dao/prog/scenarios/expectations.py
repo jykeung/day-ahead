@@ -493,6 +493,35 @@ def _check_grid_peak_at_least(value: float, ctx: CaseContext) -> CheckResult:
     return CheckResult("grid_peak_at_least", ok, detail)
 
 
+def _sum_kwh(mv, container: str, window: range, per_interval_kwh: bool) -> float:
+    """Sum a (u,)- or (x, u)-indexed container over a window. c_t and pv_ac
+    are energy per interval already; the battery flows are power (kW)."""
+    if mv is None or not mv.has(container):
+        return 0.0
+    total = 0.0
+    for idx, v in mv.items(container):
+        if idx[-1] in window:
+            total += v if per_interval_kwh else v * _INTERVAL_H
+    return total
+
+
+@case_check("grid_export_during")
+def _check_grid_export_during(value: dict, ctx: CaseContext) -> CheckResult:
+    kwh = _sum_kwh(ctx.mv, "c_t", _window_range(ctx, value), per_interval_kwh=True)
+    lo, hi = value.get("min_kwh"), value.get("max_kwh")
+    ok = (lo is None or kwh >= lo) and (hi is None or kwh <= hi)
+    detail = "" if ok else f"{kwh:.3f} kWh exported in {value['start']}-{value['end']}, wanted {lo}..{hi}"
+    return CheckResult("grid_export_during", ok, detail)
+
+
+@case_check("solar_used_during")
+def _check_solar_used_during(value: dict, ctx: CaseContext) -> CheckResult:
+    kwh = _sum_kwh(ctx.mv, "pv_ac", _window_range(ctx, value), per_interval_kwh=True)
+    ok = kwh >= value["min_kwh"]
+    detail = "" if ok else f"{kwh:.3f} kWh PV used in {value['start']}-{value['end']}, wanted >= {value['min_kwh']}"
+    return CheckResult("solar_used_during", ok, detail)
+
+
 @case_check("battery_charges_during")
 def _check_battery_charges_during(value: dict, ctx: CaseContext) -> CheckResult:
     window = _window_range(ctx, value)

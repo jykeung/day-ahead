@@ -29,6 +29,8 @@ KNOWN_EXPECT_KEYS = {
     "machine_runs_in_window",
     "grid_peak_at_most",
     "grid_peak_at_least",
+    "grid_export_during",
+    "solar_used_during",
 }
 
 

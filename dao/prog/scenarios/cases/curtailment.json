@@ -1,0 +1,209 @@
+[
+  {
+    "start": "2026-06-21 00:00",
+    "prices": {
+      "cons": [
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25
+      ],
+      "prod": [
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        -0.1,
+        -0.1,
+        -0.1,
+        -0.1,
+        -0.1,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05
+      ]
+    },
+    "solar": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.3,
+      1.1,
+      2.3,
+      3.6,
+      4.7,
+      5.4,
+      5.8,
+      5.9,
+      5.7,
+      5.1,
+      4.2,
+      3.1,
+      1.9,
+      0.9,
+      0.3,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "id": "curtail-control-no-switch",
+    "description": "Control: sunny day, feed-in price negative 10:00-15:00, battery already full, no PV switch or limit - DAO cannot avoid exporting at a loss",
+    "config_patch": {
+      "solar[0].entity pv switch": null,
+      "solar[1].entity pv switch": null
+    },
+    "states": {
+      "sensor.ess_battery_soc": "98"
+    },
+    "expect": {
+      "solved": true,
+      "grid_export_during": {
+        "start": "10:00",
+        "end": "15:00",
+        "min_kwh": 5.0
+      }
+    }
+  },
+  {
+    "start": "2026-06-21 00:00",
+    "prices": {
+      "cons": [
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25
+      ],
+      "prod": [
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        -0.1,
+        -0.1,
+        -0.1,
+        -0.1,
+        -0.1,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05
+      ]
+    },
+    "solar": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.3,
+      1.1,
+      2.3,
+      3.6,
+      4.7,
+      5.4,
+      5.8,
+      5.9,
+      5.7,
+      5.1,
+      4.2,
+      3.1,
+      1.9,
+      0.9,
+      0.3,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "id": "curtail-limit-zero-export",
+    "description": "Same day with a continuous PV limit - DAO curtails to the house's own consumption: no export in the negative window, but the house still runs on solar",
+    "config_patch": {
+      "solar[0].entity pv switch": null,
+      "solar[1].entity pv switch": null,
+      "solar[0].entity pv limit": "input_number.pv_limit_woning",
+      "solar[1].entity pv limit": "input_number.pv_limit_garage"
+    },
+    "states": {
+      "sensor.ess_battery_soc": "98"
+    },
+    "expect": {
+      "solved": true,
+      "grid_export_during": {
+        "start": "10:00",
+        "end": "15:00",
+        "max_kwh": 0.05
+      },
+      "solar_used_during": {
+        "start": "10:00",
+        "end": "15:00",
+        "min_kwh": 0.5
+      }
+    }
+  }
+]
