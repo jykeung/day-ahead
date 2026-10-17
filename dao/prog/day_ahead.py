@@ -3797,6 +3797,43 @@ class DaCalc(DaBase):
         else:
             logging.info("Berekende prognoses zijn niet opgeslagen.")
 
+        entity_plan = getattr(self.config, "entity_plan", None)
+        if entity_plan:
+            from dao.prog.plan_export import build_plan_rows
+
+            load_kwh = [
+                b_l[u] * interval_fraction[u] + c_b[u].x + c_hp[u].x + c_ev_sum[u]
+                + (c_ma_sum[u] if M > 0 else 0.0)
+                for u in range(U)
+            ]
+            plan_rows = build_plan_rows(
+                tijd=tijd,
+                hour_fraction=hour_fraction,
+                pv_forecast_kwh=solar_hour_sum_org,
+                pv_kwh=solar_hour_sum_opt,
+                import_kwh=[c_l[u].x for u in range(U)],
+                export_kwh=[c_t[u].x for u in range(U)],
+                battery_in_kwh=accu_in_sum,
+                battery_out_kwh=accu_out_sum,
+                load_kwh=load_kwh,
+                soc_end=list(df_soc["soc"])[1:] if B > 0 else None,
+                price_buy=pl,
+                price_sell=pt,
+                time_zone=getattr(self, "time_zone", None),
+            )
+            if self.debug:
+                logging.info(f"Plan met {len(plan_rows)} intervallen zou naar {entity_plan} gaan")
+            else:
+                try:
+                    self.set_state(
+                        entity_plan,
+                        dt.datetime.now().astimezone().isoformat(timespec="seconds"),
+                        {"plan": plan_rows, "friendly_name": "DAO plan", "icon": "mdi:chart-timeline-variant"},
+                    )
+                    logging.info(f"Plan met {len(plan_rows)} intervallen gezet op {entity_plan}")
+                except Exception as ex:
+                    logging.warning(f"Plan niet naar {entity_plan} geschreven: {ex}")
+
         d_f = d_f.astype({"uur": str})
         d_f.loc["total"] = d_f.iloc[:, 1:].sum()
         cost_consumption = d_f.loc["total"]["cost"]

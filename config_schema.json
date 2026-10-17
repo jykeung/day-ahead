@@ -3126,6 +3126,22 @@
       "x-ui-group": "DAO",
       "x-ui-section": "Your home"
     },
+    "entity plan": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "HA entity to publish the whole optimized plan on",
+      "title": "Entity Plan",
+      "x-help": "Optional: after each (non-debug) optimization DAO sets this entity (e.g. sensor.dao_plan) with the calculation time as state and the full plan in the 'plan' attribute: one row per interval with t, pv_forecast, pv, grid, battery, load (kW), soc (%) and buy/sell (EUR/kWh). Dashboards can chart it directly. The attribute is large; exclude the entity from the recorder.",
+      "x-ui-group": "DAO",
+      "x-ui-section": "Your home"
+    },
     "meteoserver-key": {
       "$ref": "#/$defs/SecretStr",
       "description": "Meteoserver API key (can use !secret)",
