@@ -57,6 +57,7 @@
   - [SecretStr](#secretstr)
   - [SocPowerLimit](#socpowerlimit)
   - [SolarString](#solarstring)
+  - [SolcastConfig](#solcastconfig)
   - [XGBoostConfig](#xgboostconfig)
 
 ---
@@ -320,6 +321,7 @@ For panels facing different directions, use the 'strings' configuration:
 | `ml_prediction` | boolean | No | `false` | Use ML model to predict solar production for this installation |
 | `ml_training_start_date` | string (optional) | No | `"2000-01-01"` | If configured the ml-traning of the solar model will be trained with the data since the start date |
 | `entities sensors` | list[[EntityId](#entityid)] | No | `null` | HA sensor entities for measuring actual solar production |
+| `solcast` | [SolcastConfig](#solcastconfig) (optional) | No | `null` | Use the Solcast PV Forecast integration as forecast |
 | `max power` | number (optional) | No | `null` | Maximum output power cap in kW (MPPT limit) (Unit: `kW`) |
 
 <details>
@@ -364,6 +366,10 @@ The ml-training will be restricted to the data since the start date with a maxim
 **`entities sensors`**
 
 Optional: Home Assistant sensor entity (or list of entities) measuring actual solar production. Used for reporting and ML model training.
+
+**`solcast`**
+
+Optional: plan with the forecast of the Solcast PV Forecast integration in Home Assistant instead of DAO's own calculation from global radiation (or the ML prediction). Intervals beyond the Solcast horizon fall back to the own calculation, so keep the flat or strings configuration.
 
 **`max power`**
 
@@ -2137,6 +2143,34 @@ Optional. Limit the string output to this value in kW. Use when your MPPT maximu
 **`yield`**
 
 Efficiency factor for this string. Typically 0.8-0.9. Accounts for inverter losses, cable losses, shading, and dirt on panels.
+
+</details>
+
+
+### SolcastConfig
+
+_Solar forecast taken from the Solcast PV Forecast integration._
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `entities` | list[[EntityId](#entityid)] | Yes | — | Solcast forecast sensors, one per day |
+| `estimate` | string | No | `"pv_estimate"` | Which Solcast estimate to plan with. Options: `pv_estimate`, `pv_estimate10`, `pv_estimate90` |
+| `attribute` | string | No | `"detailedForecast"` | Attribute holding the 30-minute periods |
+
+<details>
+<summary><b>📖 Field Details</b> (click to expand)</summary>
+
+**`entities`**
+
+Solcast PV Forecast sensors whose forecast attribute lists the 30-minute periods, e.g. sensor.solcast_pv_forecast_forecast_today, ..._forecast_tomorrow, ..._forecast_day_3. Periods are combined across all of them.
+
+**`estimate`**
+
+pv_estimate is the median (P50); pv_estimate10 the pessimistic P10 (10% chance of less); pv_estimate90 the optimistic P90.
+
+**`attribute`**
+
+Defaults to detailedForecast (all sites together). With the integration's per-site breakdown enabled, use detailedForecast_<site_id> for one rooftop site.
 
 </details>
 

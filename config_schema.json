@@ -2884,6 +2884,21 @@
           "x-ui-section": "ML Prediction",
           "x-ui-widget-filter": "sensor"
         },
+        "solcast": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SolcastConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Use the Solcast PV Forecast integration as forecast",
+          "x-help": "Optional: plan with the forecast of the Solcast PV Forecast integration in Home Assistant instead of DAO's own calculation from global radiation (or the ML prediction). Intervals beyond the Solcast horizon fall back to the own calculation, so keep the flat or strings configuration.",
+          "x-ui-section": "Panel Orientation",
+          "title": "Solcast"
+        },
         "max power": {
           "anyOf": [
             {
@@ -2985,6 +3000,46 @@
       "type": "object",
       "x-help": "Configuration for a single string of solar panels with the same tilt and orientation. Use multiple strings for panels facing different directions.",
       "x-ui-section": "Panel Orientation"
+    },
+    "SolcastConfig": {
+      "additionalProperties": true,
+      "description": "Solar forecast taken from the Solcast PV Forecast integration.",
+      "properties": {
+        "entities": {
+          "description": "Solcast forecast sensors, one per day",
+          "items": {
+            "$ref": "#/$defs/EntityId"
+          },
+          "title": "Entities",
+          "type": "array",
+          "x-help": "Solcast PV Forecast sensors whose forecast attribute lists the 30-minute periods, e.g. sensor.solcast_pv_forecast_forecast_today, ..._forecast_tomorrow, ..._forecast_day_3. Periods are combined across all of them.",
+          "x-ui-widget-filter": "sensor"
+        },
+        "estimate": {
+          "default": "pv_estimate",
+          "description": "Which Solcast estimate to plan with",
+          "enum": [
+            "pv_estimate",
+            "pv_estimate10",
+            "pv_estimate90"
+          ],
+          "title": "Estimate",
+          "type": "string",
+          "x-help": "pv_estimate is the median (P50); pv_estimate10 the pessimistic P10 (10% chance of less); pv_estimate90 the optimistic P90."
+        },
+        "attribute": {
+          "default": "detailedForecast",
+          "description": "Attribute holding the 30-minute periods",
+          "title": "Attribute",
+          "type": "string",
+          "x-help": "Defaults to detailedForecast (all sites together). With the integration's per-site breakdown enabled, use detailedForecast_<site_id> for one rooftop site."
+        }
+      },
+      "required": [
+        "entities"
+      ],
+      "title": "SolcastConfig",
+      "type": "object"
     },
     "TibberConfig": {
       "additionalProperties": true,
