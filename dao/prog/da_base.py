@@ -561,6 +561,7 @@ class DaBase(hass.Hass):
         tot: datetime.datetime,
         interval: str = None,
         _ml_prediction: bool = None,
+        _solcast: bool = True,
     ) -> pd.DataFrame:
         """
         berekent de solar production
@@ -569,8 +570,11 @@ class DaBase(hass.Hass):
         :param tot: datetime tot
         :param interval: 15"min of 1 hour of None, als None wordt self.interval genomen
         :param _ml_prediction: boolean default None(= from config)
+        :param _solcast: False slaat een geconfigureerde Solcast-bron over
         :return:
         """
+        if _solcast and getattr(solar_option, "solcast", None) is not None:
+            return self.calc_solcast_predictions(solar_option, vanaf, tot, interval)
         if _ml_prediction is None:
             ml_prediction = solar_option.ml_prediction
         else:
@@ -638,6 +642,61 @@ class DaBase(hass.Hass):
                 solar_prog.loc[solar_prog.shape[0]] = [row.tijd, prod]
         solar_prog.reset_index(drop=True, inplace=True)
         return solar_prog
+
+    def calc_solcast_predictions(
+        self,
+        solar_option,
+        vanaf: datetime.datetime,
+        tot: datetime.datetime,
+        interval: str = None,
+    ) -> pd.DataFrame:
+        """
+        Solar production per interval from the Solcast PV Forecast integration.
+
+        Same frame as calc_solar_predictions (tijd, prediction in kWh), built on
+        the own prediction's interval grid; every interval Solcast fully covers
+        gets the Solcast energy, the rest keeps the own prediction.
+        """
+        from dao.prog.solcast import interval_energy, parse_periods
+
+        cfg = solar_option.solcast
+        result = self.calc_solar_predictions(
+            solar_option, vanaf, tot, interval=interval, _solcast=False
+        )
+        interval_s = (
+            self.interval_s
+            if interval is None
+            else (900 if interval == "15min" else 3600)
+        )
+        time_zone = getattr(self, "time_zone", None)
+
+        forecasts = []
+        for entity in cfg.entities:
+            try:
+                attributes = getattr(self.get_state(entity), "attributes", None) or {}
+            except Exception as ex:
+                logging.warning(f"Solcast-forecast {entity} niet leesbaar: {ex}")
+                continue
+            forecasts.extend(attributes.get(cfg.attribute) or [])
+        periods = parse_periods(forecasts, cfg.estimate, time_zone)
+        if solar_option.max_power:
+            periods = [(s, e, min(kw, solar_option.max_power)) for s, e, kw in periods]
+
+        from_solcast = 0
+        for i, tijd in enumerate(result["tijd"]):
+            start = pd.Timestamp(tijd)
+            if start.tzinfo is not None:
+                start = (start.tz_convert(time_zone) if time_zone else start).tz_localize(None)
+            start = start.to_pydatetime()
+            kwh = interval_energy(periods, start, start + datetime.timedelta(seconds=interval_s))
+            if kwh is not None:
+                result.loc[i, "prediction"] = round(kwh, 3)
+                from_solcast += 1
+        logging.info(
+            f"{solar_option.name}: {from_solcast} van {len(result)} intervallen uit "
+            f"Solcast ({cfg.estimate}), de rest uit de eigen voorspelling"
+        )
+        return result
 
     @staticmethod
     def train_ml_predictions():

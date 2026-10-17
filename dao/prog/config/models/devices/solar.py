@@ -3,7 +3,7 @@ Solar configuration models.
 """
 
 from datetime import date
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import (
     BaseModel,
@@ -83,6 +83,48 @@ class SolarString(BaseModel):
             "x-ui-section": "Panel Orientation",
         },
     )
+
+
+class SolcastConfig(BaseModel):
+    """Solar forecast taken from the Solcast PV Forecast integration."""
+
+    entities: list[EntityId] = Field(
+        description="Solcast forecast sensors, one per day",
+        json_schema_extra={
+            "x-help": "Solcast PV Forecast sensors whose forecast attribute lists the "
+            "30-minute periods, e.g. sensor.solcast_pv_forecast_forecast_today, "
+            "..._forecast_tomorrow, ..._forecast_day_3. Periods are combined across "
+            "all of them.",
+            "x-ui-widget-filter": "sensor",
+        },
+    )
+    estimate: Literal["pv_estimate", "pv_estimate10", "pv_estimate90"] = Field(
+        default="pv_estimate",
+        description="Which Solcast estimate to plan with",
+        json_schema_extra={
+            "x-help": "pv_estimate is the median (P50); pv_estimate10 the pessimistic "
+            "P10 (10% chance of less); pv_estimate90 the optimistic P90.",
+        },
+    )
+    attribute: str = Field(
+        default="detailedForecast",
+        description="Attribute holding the 30-minute periods",
+        json_schema_extra={
+            "x-help": "Defaults to detailedForecast (all sites together). With the "
+            "integration's per-site breakdown enabled, use "
+            "detailedForecast_<site_id> for one rooftop site.",
+        },
+    )
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True, loc_by_alias=False)
+
+    @field_validator("entities", mode="before")
+    @classmethod
+    def coerce_entities_to_list(cls, v: Any) -> list[str]:
+        """Allow a single entity ID string to be given without wrapping it in a list."""
+        if isinstance(v, str):
+            return [v]
+        return v
 
 
 class SolarConfig(BaseModel):
@@ -190,6 +232,18 @@ class SolarConfig(BaseModel):
             "x-help": "Optional: Home Assistant sensor entity (or list of entities) measuring actual solar production. Used for reporting and ML model training.",
             "x-ui-section": "ML Prediction",
             "x-ui-widget-filter": "sensor",
+        },
+    )
+    solcast: SolcastConfig | None = Field(
+        default=None,
+        description="Use the Solcast PV Forecast integration as forecast",
+        json_schema_extra={
+            "x-help": "Optional: plan with the forecast of the Solcast PV Forecast "
+            "integration in Home Assistant instead of DAO's own calculation from "
+            "global radiation (or the ML prediction). Intervals beyond the Solcast "
+            "horizon fall back to the own calculation, so keep the flat or strings "
+            "configuration.",
+            "x-ui-section": "Panel Orientation",
         },
     )
     max_power: float | None = Field(
