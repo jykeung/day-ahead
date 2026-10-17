@@ -34,6 +34,7 @@ class Meteo:
         mk = config.meteoserver_key
         self.meteoserver_key = mk.resolve(_secrets) if mk is not None else None
         self.meteoserver_model = config.meteoserver_model
+        self.meteo_source = getattr(config, "meteo_source", "meteoserver")
         self.meteoserver_attempts = config.meteoserver_attempts
         self.latitude = latitude
         self.longitude = longitude
@@ -442,12 +443,42 @@ class Meteo:
         logging.info(f"Data {model}: \n{df1.to_string(index=True)}")
         return df1
 
+    def get_from_open_meteo(self, forecast_days: int = 3) -> pd.DataFrame:
+        """Hourly forecast from the free Open-Meteo API, in Meteoserver's shape.
+
+        Open-Meteo reports shortwave_radiation as the mean W/m² over the hour
+        *preceding* each timestamp, so that value belongs to the hour starting
+        one hour earlier: each row's tijd is that start, with the temperature
+        at that moment. W/m² over an hour x 3600 s / 10000 cm²/m² = x 0.36 J/cm².
+        """
+        url = (
+            "https://api.open-meteo.com/v1/forecast"
+            f"?latitude={self.latitude}&longitude={self.longitude}"
+            "&hourly=temperature_2m,shortwave_radiation,wind_speed_10m,precipitation"
+            f"&wind_speed_unit=ms&timeformat=unixtime&timezone=UTC&forecast_days={forecast_days}"
+        )
+        hourly = None
+        for _ in range(max(1, self.meteoserver_attempts or 1)):
+            try:
+                resp = get(url, timeout=30)
+                hourly = resp.json().get("hourly")
+            except Exception as ex:
+                logging.info(f"Open-Meteo: {ex}")
+            if hourly:
+                break
+        if not hourly:
+            return pd.DataFrame()
+        return open_meteo_to_frame(hourly)
+
     def get_meteo_data(self, show_graph=False):
-        df1 = self.get_from_meteoserver(self.meteoserver_model)
+        if self.meteo_source == "open-meteo":
+            df1 = self.get_from_open_meteo()
+        else:
+            df1 = self.get_from_meteoserver(self.meteoserver_model)
         df_db = pd.DataFrame(columns=["time", "code", "value"])
         count = len(df1)
         if count == 0:
-            logging.error(f"No {self.meteoserver_model}-data recieved from meteoserver")
+            logging.error(f"No meteo data received from {self.meteo_source}")
         else:
             df1 = df1.reset_index()  # make sure indexes pair with number of rows
             for row in df1.itertuples():
@@ -727,3 +758,31 @@ def main():
 if __name__ == "__main__":
     main()
 """
+
+
+def open_meteo_to_frame(hourly: dict) -> pd.DataFrame:
+    """Open-Meteo 'hourly' block -> rows (tijd, gr, temp, winds, neersl).
+
+    Row i describes the hour [t[i-1], t[i]): the radiation and precipitation
+    Open-Meteo reports at t[i] cover that hour; temperature and wind are taken
+    at its start, t[i-1].
+    """
+    times = hourly.get("time") or []
+    rad = hourly.get("shortwave_radiation") or []
+    temp = hourly.get("temperature_2m") or []
+    wind = hourly.get("wind_speed_10m") or []
+    rain = hourly.get("precipitation") or []
+    rows = []
+    for i in range(1, len(times)):
+        if rad[i] is None or temp[i - 1] is None:
+            continue
+        rows.append(
+            {
+                "tijd": int(times[i - 1]),
+                "gr": round(float(rad[i]) * 0.36, 2),
+                "temp": float(temp[i - 1]),
+                "winds": float(wind[i - 1] or 0.0),
+                "neersl": float(rain[i] or 0.0),
+            }
+        )
+    return pd.DataFrame(rows, columns=["tijd", "gr", "temp", "winds", "neersl"])
