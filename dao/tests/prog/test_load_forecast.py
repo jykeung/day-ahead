@@ -56,3 +56,53 @@ def test_total_load_source_cannot_double_count_native_appliances():
     assert ConfigurationV2.model_validate(config).entity_load_forecast=='sensor.dao_load_forecast'
     with pytest.raises(ValueError,match='already includes appliances'):
         ConfigurationV2.model_validate({**config,'heating':{'heater present':True,'adjustment':'on/off'}})
+
+
+def test_native_component_is_replaced_not_added_twice():
+    a=attrs()
+    for row in a['schedule']:
+        row['space_heating']=.5
+        row['car']=1.0
+    value,count=forecast_baseload(a,[START],900,[.1],'Europe/Brussels',NOW,
+                                  excluded_components=['space_heating','car'])
+    assert count==1 and value==[.125]
+
+
+@pytest.mark.parametrize('value', [-1, float('nan'), float('inf'), 3])
+def test_invalid_or_excess_native_components_are_rejected(value):
+    a=attrs();a['schedule'][0]['car']=value
+    with pytest.raises(ValueError):
+        forecast_baseload(a,[START],900,[.1],'Europe/Brussels',NOW,excluded_components=['car'])
+
+
+def test_missing_native_component_is_rejected():
+    with pytest.raises(KeyError):
+        forecast_baseload(attrs(),[START],900,[.1],'Europe/Brussels',NOW,excluded_components=['car'])
+
+
+def test_native_exclusions_must_match_enabled_models_exactly():
+    from dao.prog.config.versions.v2 import ConfigurationV2
+    config={'meteo source':'open-meteo','entity load forecast':'sensor.dao_load_forecast',
+            'heating':{'heater present':True,'adjustment':'on/off'}}
+    result=ConfigurationV2.model_validate({**config,'load forecast excludes':['space_heating']})
+    assert result.load_forecast_excludes==['space_heating']
+    for excluded in [[],['car'],['space_heating','car'],['space_heating','space_heating']]:
+        with pytest.raises(ValueError):ConfigurationV2.model_validate({**config,'load forecast excludes':excluded})
+    with pytest.raises(ValueError):ConfigurationV2.model_validate({'meteo source':'open-meteo','load forecast excludes':['car']})
+
+
+def test_native_machine_components_are_explicit_and_unique():
+    from dao.prog.config.versions.v2 import ConfigurationV2
+    machine={'name':'Dehumidifier','programs':[{'name':'off','power':[0]}],
+             'entity start window':'input_datetime.test_start','entity end window':'input_datetime.test_end',
+             'entity selected program':'input_select.test_program',
+             'entity calculated start':'input_datetime.test_calculated_start',
+             'entity calculated end':'input_datetime.test_calculated_end'}
+    base={'meteo source':'open-meteo','entity load forecast':'sensor.dao_load_forecast','machines':[machine]}
+    with pytest.raises(ValueError,match='forecast component'):ConfigurationV2.model_validate(base)
+    defined={**machine,'forecast component':'dehumidifier'}
+    result=ConfigurationV2.model_validate({**base,'machines':[defined],'load forecast excludes':['dehumidifier']})
+    assert result.machines[0].forecast_component=='dehumidifier'
+    with pytest.raises(ValueError,match='multiple native models'):
+        ConfigurationV2.model_validate({**base,'machines':[defined,{**defined,'name':'Second'}],
+                                        'load forecast excludes':['dehumidifier']})

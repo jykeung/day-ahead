@@ -11,7 +11,8 @@ import math
 from zoneinfo import ZoneInfo
 
 
-def forecast_baseload(attributes, times, interval_seconds, fallback, time_zone, now):
+def forecast_baseload(attributes, times, interval_seconds, fallback, time_zone, now,
+                      excluded_components=()):
     """Return (interval kWh, number covered); never add a total-load forecast twice."""
     result = list(fallback)
     generated = dt.datetime.fromisoformat(attributes['generated_at'])
@@ -29,6 +30,15 @@ def forecast_baseload(attributes, times, interval_seconds, fallback, time_zone, 
             raise ValueError('Invalid forecast interval')
         if not math.isfinite(power) or power < 0:
             raise ValueError('Invalid forecast power')
+        removed = 0.0
+        for component in excluded_components:
+            value = float(row[component])
+            if not math.isfinite(value) or value < 0:
+                raise ValueError(f'Invalid forecast component: {component}')
+            removed += value
+        if removed > power + 0.0001:
+            raise ValueError('Forecast components exceed total demand')
+        power = max(0.0, power - removed)
         periods.append((start.timestamp(), end.timestamp(), power))
     periods.sort()
     if any(b[0] < a[1] for a, b in zip(periods, periods[1:])):

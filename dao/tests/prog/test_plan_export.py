@@ -49,3 +49,16 @@ def test_partial_first_interval_and_no_battery():
     assert rows[0]["pv"] == 6.0 and rows[0]["grid"] == -3.0
     assert "soc" not in rows[0]
     assert rows[0]["t"] == "2026-10-17T12:10:00"
+
+
+def test_native_devices_are_published_in_kw_for_partial_and_hourly_intervals():
+    import pytest
+    args=dict(tijd=[dt.datetime(2026,10,17,12,10),dt.datetime(2026,10,17,13)],
+              hour_fraction=[5/60,1],pv_forecast_kwh=[0,0],pv_kwh=[0,0],
+              import_kwh=[.5,3],export_kwh=[0,0],battery_in_kwh=[0,0],battery_out_kwh=[0,0],
+              load_kwh=[.5,3],soc_end=None,price_buy=[.2,.3],price_sell=[.1,.1])
+    rows=build_plan_rows(**args,device_energy_kwh={'space_heating':[.25,2],'hot_water':[0,1]})
+    assert rows[0]['devices']=={'space_heating':3,'hot_water':0}
+    assert rows[1]['devices']=={'space_heating':2,'hot_water':1}
+    with pytest.raises(ValueError,match='length mismatch'):
+        build_plan_rows(**args,device_energy_kwh={'car':[1]})

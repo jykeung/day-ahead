@@ -514,6 +514,7 @@ class DaCalc(DaBase):
                     attributes, tijd,
                     [hour_fraction[u] / interval_fraction[u] * 3600 for u in range(U)], b_l,
                     getattr(self, "time_zone", None), dt.datetime.now(dt.timezone.utc),
+                    excluded_components=getattr(self.config, "load_forecast_excludes", ()),
                 )
                 logging.info(
                     f"House demand from {load_forecast_entity}: "
@@ -3909,6 +3910,19 @@ class DaCalc(DaBase):
         if entity_plan:
             from dao.prog.plan_export import build_plan_rows
 
+            device_energy = {}
+            if self.heating_options and self.heating_options.heater_present:
+                device_energy["space_heating"] = [c_hp[u].x for u in range(U)]
+            if self.boiler_options and self.boiler_options.boiler_present:
+                device_energy["hot_water"] = [c_b[u].x for u in range(U)]
+            if EV > 0:
+                device_energy["car"] = c_ev_sum
+            for m in range(M):
+                key = self.machines[m].forecast_component or f"machine:{self.machines[m].name}"
+                energy = [c_ma_u[m][u].x for u in range(U)]
+                previous = device_energy.get(key, [0.0] * U)
+                device_energy[key] = [a + b for a, b in zip(previous, energy)]
+
             load_kwh = [
                 b_l[u] * interval_fraction[u] + c_b[u].x + c_hp[u].x + c_ev_sum[u]
                 + (c_ma_sum[u] if M > 0 else 0.0)
@@ -3928,6 +3942,7 @@ class DaCalc(DaBase):
                 price_buy=pl,
                 price_sell=pt,
                 time_zone=getattr(self, "time_zone", None),
+                device_energy_kwh=device_energy,
             )
             for u, plan_row in enumerate(plan_rows):
                 plan_row["price_estimated"] = bool(tijd[u] >= end_fixed_dt)
@@ -3940,6 +3955,7 @@ class DaCalc(DaBase):
                         dt.datetime.now().astimezone().isoformat(timespec="seconds"),
                         {
                             "plan": plan_rows,
+                            "optimized_devices": list(device_energy),
                             "friendly_name": "DAO plan",
                             "icon": "mdi:chart-timeline-variant",
                             "load_forecast_entity": load_forecast_entity,

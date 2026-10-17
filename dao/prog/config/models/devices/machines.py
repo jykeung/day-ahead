@@ -47,6 +47,10 @@ class MachineConfig(BaseModel):
             "x-ui-section": "Machine Specifications",
         },
     )
+    forecast_component: str | None = Field(
+        default=None, alias="forecast component",
+        description="Named total-load forecast component replaced by this machine's optimized schedule",
+    )
     programs: list[MachineProgram] = Field(
         min_length=1,
         description="Available programs with power profiles",

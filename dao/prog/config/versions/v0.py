@@ -97,6 +97,11 @@ class ConfigurationV0(DAOConfigBaseModel):
                            "Do not also enable native optimization of loads included here."},
     )
 
+    load_forecast_excludes: list[str] = Field(
+        default_factory=list, alias="load forecast excludes",
+        description="Forecast components replaced by native optimization; must exactly match configured native loads",
+    )
+
     # Plan export
     entity_plan: str | None = Field(
         default=None,
@@ -337,13 +342,28 @@ class ConfigurationV0(DAOConfigBaseModel):
 
     @model_validator(mode="after")
     def total_load_forecast_excludes_native_loads(self) -> "ConfigurationV0":
-        if self.entity_load_forecast and (
-            self.electric_vehicle or self.machines
-            or (self.heating and self.heating.heater_present)
-            or (self.boiler and self.boiler.boiler_present)
-        ):
-            raise ValueError("Total load forecast already includes appliances; "
-                             "disable native heating, boiler, EV and machine optimization")
+        if not self.entity_load_forecast:
+            if self.load_forecast_excludes:
+                raise ValueError("load forecast excludes requires entity load forecast")
+            return self
+        native = []
+        if self.electric_vehicle:
+            native.append("car")
+        if self.heating and self.heating.heater_present:
+            native.append("space_heating")
+        if self.boiler and self.boiler.boiler_present:
+            native.append("hot_water")
+        for machine in self.machines:
+            if not machine.forecast_component:
+                raise ValueError("Native machines need a forecast component when using a total load forecast")
+            native.append(machine.forecast_component)
+        if len(native) != len(set(native)):
+            raise ValueError("A forecast component cannot be optimized by multiple native models")
+        if len(self.load_forecast_excludes) != len(set(self.load_forecast_excludes)):
+            raise ValueError("Duplicate load forecast excludes")
+        if set(native) != set(self.load_forecast_excludes):
+            raise ValueError("Total load forecast already includes appliances; load forecast excludes "
+                             "must exactly match native components: " + ", ".join(native))
         return self
 
     @model_validator(mode="after")

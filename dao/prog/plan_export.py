@@ -31,6 +31,7 @@ def build_plan_rows(
     price_buy: Sequence[float],
     price_sell: Sequence[float],
     time_zone: str | None = None,
+    device_energy_kwh: dict[str, Sequence[float]] | None = None,
 ) -> list[dict]:
     """One dict per interval.
 
@@ -44,6 +45,10 @@ def build_plan_rows(
     buy, sell    consumption and feed-in tariff (EUR/kWh)
     """
     import pandas as pd
+
+    for name, energy in (device_energy_kwh or {}).items():
+        if len(energy) != len(tijd):
+            raise ValueError(f"Device plan length mismatch: {name}")
 
     rows = []
     for u, start in enumerate(tijd):
@@ -63,5 +68,8 @@ def build_plan_rows(
         }
         if soc_end is not None:
             row["soc"] = round(float(soc_end[u]), 1)
+        if device_energy_kwh:
+            row["devices"] = {name: _kw(energy[u], hours)
+                              for name, energy in device_energy_kwh.items()}
         rows.append(row)
     return rows
