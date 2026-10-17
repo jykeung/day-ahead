@@ -8,6 +8,47 @@ from pydantic import BaseModel, ConfigDict, Field
 from .base import EntityId
 
 
+class CapacityTariffConfig(BaseModel):
+    """Capacity tariff on the monthly quarter-hour peak (e.g. Flanders)."""
+
+    tariff: dict[str, float] = Field(
+        description="Capacity tariff in euro per kW per year, by effective date",
+        json_schema_extra={
+            "x-help": "Yearly capacity tariff in euro per kW, indexed by effective date "
+            "(YYYY-MM-DD), as you pay it (incl. VAT). Each month is billed at 1/12 of "
+            "this times that month's peak, so raising the month's peak by 1 kW costs "
+            "tariff / 12. Format: {'2026-01-01': 53.25}.",
+            "x-unit": "€/kW/year",
+        },
+    )
+    minimum_power: float = Field(
+        default=2.5,
+        ge=0,
+        alias="minimum power",
+        description="Peak below which nothing extra is billed, in kW",
+        json_schema_extra={
+            "x-help": "The billed peak never drops below this value (2.5 kW in Flanders), "
+            "so planning quarters up to it costs nothing.",
+            "x-unit": "kW",
+        },
+    )
+    entity_month_peak: EntityId | None = Field(
+        default=None,
+        alias="entity month peak",
+        description="HA entity with the peak already reached this month",
+        json_schema_extra={
+            "x-help": "Optional: Home Assistant sensor with the highest quarter-hour "
+            "average reached so far this calendar month (W or kW, read from its "
+            "unit_of_measurement). That peak is already billed, so the optimizer may "
+            "plan up to it for free. Without it, the month is assumed to start at the "
+            "minimum power.",
+            "x-ui-widget-filter": "sensor",
+        },
+    )
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True, loc_by_alias=False)
+
+
 class GridConfig(BaseModel):
     """Electrical grid connection configuration."""
 
@@ -31,6 +72,19 @@ class GridConfig(BaseModel):
             "Used for frequency regulation participation or grid services.",
             "x-ui-section": "Power Configuration",
             "x-ui-widget-filter": "switch",
+        },
+    )
+    capacity_tariff: CapacityTariffConfig | None = Field(
+        default=None,
+        alias="capacity tariff",
+        description="Capacity tariff on the monthly quarter-hour peak",
+        json_schema_extra={
+            "x-help": "Optional: capacity tariff as in Flanders, where the highest "
+            "quarter-hour average of grid consumption in a month is billed per kW. "
+            "The optimizer then weighs raising this month's peak against the energy "
+            "price. Use the '15min' interval: with '1hour' it can only see hourly "
+            "averages, which hide shorter quarter-hour peaks.",
+            "x-ui-section": "Power Configuration",
         },
     )
     entity_grid_setpoint: EntityId | None = Field(

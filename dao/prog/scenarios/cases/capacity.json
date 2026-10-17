@@ -1,0 +1,143 @@
+[
+  {
+    "id": "capacity-control-no-tariff",
+    "description": "Control: a two-hour cheap window and an empty battery, no capacity tariff - the battery charges hard and the grid peak is high",
+    "start": "2026-01-14 00:00",
+    "prices": {
+      "cons": [
+        0.3,
+        0.3,
+        0.05,
+        0.05,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3
+      ]
+    },
+    "states": {
+      "sensor.ess_battery_soc": "25"
+    },
+    "expect": {
+      "solved": true,
+      "grid_peak_at_least": 5.0
+    }
+  },
+  {
+    "id": "capacity-tariff-caps-peak",
+    "description": "Same window with an expensive capacity tariff and nothing reached yet this month - charging is spread so no quarter exceeds the 2.5 kW minimum",
+    "start": "2026-01-14 00:00",
+    "prices": {
+      "cons": [
+        0.3,
+        0.3,
+        0.05,
+        0.05,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3
+      ]
+    },
+    "config_patch": {
+      "grid.capacity tariff": {
+        "tariff": {
+          "2026-01-01": 300.0
+        },
+        "minimum power": 2.5,
+        "entity month peak": "sensor.capacity_peak_this_month"
+      }
+    },
+    "states": {
+      "sensor.ess_battery_soc": "25",
+      "sensor.capacity_peak_this_month": "0"
+    },
+    "expect": {
+      "solved": true,
+      "grid_peak_at_most": 2.55
+    }
+  },
+  {
+    "id": "capacity-tariff-uses-realized-peak",
+    "description": "Same, but 4 kW was already reached this month (state in W) - that peak is already billed, so the plan uses it for free but stays under it",
+    "start": "2026-01-14 00:00",
+    "prices": {
+      "cons": [
+        0.3,
+        0.3,
+        0.05,
+        0.05,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3
+      ]
+    },
+    "config_patch": {
+      "grid.capacity tariff": {
+        "tariff": {
+          "2026-01-01": 300.0
+        },
+        "minimum power": 2.5,
+        "entity month peak": "sensor.capacity_peak_this_month"
+      }
+    },
+    "states": {
+      "sensor.ess_battery_soc": "25",
+      "sensor.capacity_peak_this_month": "4000"
+    },
+    "expect": {
+      "solved": true,
+      "grid_peak_at_least": 3.5,
+      "grid_peak_at_most": 4.05
+    }
+  }
+]

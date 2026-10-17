@@ -22,6 +22,7 @@ from utils import (
     calc_uur_index,
     convert_timestr,
     error_handling,
+    get_value_from_dict,
     interpolate,
 )
 
@@ -95,6 +96,28 @@ class DaCalc(DaBase):
         self.grid = self.config.grid
         self.machines = self.config.machines
         # self.start_logging()
+
+    def get_realized_month_peak(self, capacity_tariff) -> float:
+        """Peak (kW) already reached this month, from the configured entity.
+
+        The unit comes from the entity's unit_of_measurement; without one, a
+        value above 100 is taken to be in W. Unreadable means 0: the month is
+        then assumed to start at the minimum power.
+        """
+        entity = capacity_tariff.entity_month_peak
+        if not entity:
+            return 0.0
+        try:
+            state = self.get_state(entity)
+            value = float(state.state)
+        except (TypeError, ValueError, AttributeError):
+            logging.warning(f"Maandpiek uit {entity} niet leesbaar, gebruik 0 kW")
+            return 0.0
+        attributes = getattr(state, "attributes", None) or {}
+        unit = attributes.get("unit_of_measurement") if isinstance(attributes, dict) else None
+        if unit == "W" or (unit is None and value > 100):
+            value /= 1000
+        return max(value, 0.0)
 
     def calc_optimum(
         self,
@@ -3269,6 +3292,38 @@ class DaCalc(DaBase):
                 - xsum(pv_ac[s][u] for s in range(solar_num))
             )
 
+        #####################################################
+        #  capaciteitstarief: maandpiek op kwartierbasis
+        #####################################################
+        # Per kalendermaand in de horizon een piek-variabele (kW) die boven elk
+        # interval-gemiddelde van de levering ligt. Alleen het deel boven de al
+        # bereikte (en dus al gefactureerde) maandpiek kost geld: tarief / 12
+        # per kW. Een nieuwe maand in de horizon start op het minimum.
+        cap_peak = []
+        cap_cost_terms = []
+        capacity_tariff = getattr(self.grid, "capacity_tariff", None)
+        if capacity_tariff is not None:
+            realized_kw = self.get_realized_month_peak(capacity_tariff)
+            first_month = tijd[0].strftime("%Y-%m")
+            month_intervals: dict[str, list[int]] = {}
+            for u in range(U):
+                month_intervals.setdefault(tijd[u].strftime("%Y-%m"), []).append(u)
+            for month, intervals in month_intervals.items():
+                already = realized_kw if month == first_month else 0.0
+                free_kw = max(already, capacity_tariff.minimum_power)
+                tariff = get_value_from_dict(month + "-01", capacity_tariff.tariff)
+                peak = model.add_var(var_type=CONTINUOUS, lb=free_kw)
+                for u in intervals:
+                    model += peak >= c_l[u] / hour_fraction[u]
+                cap_peak.append(peak)
+                cap_cost_terms.append((peak - free_kw) * tariff / 12)
+                logging.info(
+                    f"Capaciteitstarief {month}: piek tot {free_kw:.2f} kW is al "
+                    f"gefactureerd, elke kW erboven kost {tariff / 12:.2f} euro"
+                )
+        capacity_cost = model.add_var(var_type=CONTINUOUS, lb=0)
+        model += capacity_cost == xsum(cap_cost_terms)
+
         # cost variabele
         cost = model.add_var(var_type=CONTINUOUS, lb=-1000, ub=1000)
         delivery = model.add_var(var_type=CONTINUOUS, lb=0, ub=1000)
@@ -3315,6 +3370,7 @@ class DaCalc(DaBase):
         # alles in kWh * prijs = kosten in euro
         model += cost == (
             xsum(c_l[u] * pl[u] - c_t[u] * pt[u] for u in range(U))
+            + capacity_cost
             + xsum(cycle_cost[b] + penalty_cost[b] for b in range(B))
             + xsum(switch_cost[e] + low_soc_penalty[e] for e in range(EV))
             + xsum(

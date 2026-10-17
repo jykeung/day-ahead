@@ -470,6 +470,29 @@ def _battery_flow_kwh(mv, container: str, window: range) -> float:
     return sum(v * _INTERVAL_H for (_b, u), v in mv.items(container) if u in window)
 
 
+def _grid_peak_kw(mv) -> float:
+    """Highest interval-average grid consumption (kW) in the plan."""
+    if mv is None or not mv.has("c_l"):
+        return 0.0
+    return max((v / _INTERVAL_H for (u,), v in mv.items("c_l") if u > 0), default=0.0)
+
+
+@case_check("grid_peak_at_most")
+def _check_grid_peak_at_most(value: float, ctx: CaseContext) -> CheckResult:
+    peak = _grid_peak_kw(ctx.mv)
+    ok = peak <= value
+    detail = "" if ok else f"grid peak {peak:.3f} kW, wanted <= {value}"
+    return CheckResult("grid_peak_at_most", ok, detail)
+
+
+@case_check("grid_peak_at_least")
+def _check_grid_peak_at_least(value: float, ctx: CaseContext) -> CheckResult:
+    peak = _grid_peak_kw(ctx.mv)
+    ok = peak >= value
+    detail = "" if ok else f"grid peak {peak:.3f} kW, wanted >= {value}"
+    return CheckResult("grid_peak_at_least", ok, detail)
+
+
 @case_check("battery_charges_during")
 def _check_battery_charges_during(value: dict, ctx: CaseContext) -> CheckResult:
     window = _window_range(ctx, value)

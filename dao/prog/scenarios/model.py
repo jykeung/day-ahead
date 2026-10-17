@@ -27,6 +27,8 @@ KNOWN_EXPECT_KEYS = {
     "no_cross_battery_charge_discharge",
     "heatpump_runs",
     "machine_runs_in_window",
+    "grid_peak_at_most",
+    "grid_peak_at_least",
 }
 
 

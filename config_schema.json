@@ -697,6 +697,51 @@
       "x-ui-group": "Heating",
       "x-ui-section": "Boiler"
     },
+    "CapacityTariffConfig": {
+      "additionalProperties": true,
+      "description": "Capacity tariff on the monthly quarter-hour peak (e.g. Flanders).",
+      "properties": {
+        "tariff": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "Capacity tariff in euro per kW per year, by effective date",
+          "title": "Tariff",
+          "type": "object",
+          "x-help": "Yearly capacity tariff in euro per kW, indexed by effective date (YYYY-MM-DD), as you pay it (incl. VAT). Each month is billed at 1/12 of this times that month's peak, so raising the month's peak by 1 kW costs tariff / 12. Format: {'2026-01-01': 53.25}.",
+          "x-unit": "€/kW/year"
+        },
+        "minimum power": {
+          "default": 2.5,
+          "description": "Peak below which nothing extra is billed, in kW",
+          "minimum": 0,
+          "title": "Minimum Power",
+          "type": "number",
+          "x-help": "The billed peak never drops below this value (2.5 kW in Flanders), so planning quarters up to it costs nothing.",
+          "x-unit": "kW"
+        },
+        "entity month peak": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EntityId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "HA entity with the peak already reached this month",
+          "x-help": "Optional: Home Assistant sensor with the highest quarter-hour average reached so far this calendar month (W or kW, read from its unit_of_measurement). That peak is already billed, so the optimizer may plan up to it for free. Without it, the month is assumed to start at the minimum power.",
+          "x-ui-widget-filter": "sensor",
+          "title": "Entity Month Peak"
+        }
+      },
+      "required": [
+        "tariff"
+      ],
+      "title": "CapacityTariffConfig",
+      "type": "object"
+    },
     "DashboardConfig": {
       "additionalProperties": true,
       "description": "Dashboard web UI configuration.",
@@ -1359,6 +1404,21 @@
           "x-ui-section": "Power Configuration",
           "x-ui-widget-filter": "switch",
           "title": "Entity Balance Switch"
+        },
+        "capacity tariff": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CapacityTariffConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Capacity tariff on the monthly quarter-hour peak",
+          "x-help": "Optional: capacity tariff as in Flanders, where the highest quarter-hour average of grid consumption in a month is billed per kW. The optimizer then weighs raising this month's peak against the energy price. Use the '15min' interval: with '1hour' it can only see hourly averages, which hide shorter quarter-hour peaks.",
+          "x-ui-section": "Power Configuration",
+          "title": "Capacity Tariff"
         },
         "entity grid setpoint": {
           "anyOf": [

@@ -43,6 +43,7 @@
   - [🏠 HomeAssistantConfig](#homeassistantconfig)
 - [Other](#other)
   - [BatteryStage](#batterystage)
+  - [CapacityTariffConfig](#capacitytariffconfig)
   - [EVChargeScheduler](#evchargescheduler)
   - [EVChargeStage](#evchargestage)
   - [EntityId](#entityid)
@@ -408,6 +409,7 @@ Optimizer ensures combined consumption never exceeds this limit:
 |-------|------|----------|---------|-------------|
 | `max_power` | number | No | `17` | Maximum grid power in kW (Unit: `kW`) _Must be > 0, typical 7-25 kW for residential_ |
 | `entity balance switch` | [EntityId](#entityid) (optional) | No | `null` | HA entity for grid balancing switch |
+| `capacity tariff` | [CapacityTariffConfig](#capacitytariffconfig) (optional) | No | `null` | Capacity tariff on the monthly quarter-hour peak |
 | `entity grid setpoint` | [EntityId](#entityid) (optional) | No | `null` | HA entity for the grid setpoint |
 
 <details>
@@ -420,6 +422,10 @@ Maximum power available from grid connection in kilowatts. Based on your main fu
 **`entity balance switch`**
 
 Optional: Home Assistant entity to enable/disable grid balancing mode. Used for frequency regulation participation or grid services.
+
+**`capacity tariff`**
+
+Optional: capacity tariff as in Flanders, where the highest quarter-hour average of grid consumption in a month is billed per kW. The optimizer then weighs raising this month's peak against the energy price. Use the '15min' interval: with '1hour' it can only see hourly averages, which hide shorter quarter-hour peaks.
 
 **`entity grid setpoint`**
 
@@ -1869,6 +1875,34 @@ Power level for this charge/discharge stage. Stages define how battery efficienc
 **`efficiency`**
 
 Energy conversion efficiency at this power level. Value between 0 and 1, where 1 = 100% efficient.
+
+</details>
+
+
+### CapacityTariffConfig
+
+_Capacity tariff on the monthly quarter-hour peak (e.g. Flanders)._
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `tariff` | object | Yes | — | Capacity tariff in euro per kW per year, by effective date (Unit: `€/kW/year`) |
+| `minimum power` | number | No | `2.5` | Peak below which nothing extra is billed, in kW (Unit: `kW`) |
+| `entity month peak` | [EntityId](#entityid) (optional) | No | `null` | HA entity with the peak already reached this month |
+
+<details>
+<summary><b>📖 Field Details</b> (click to expand)</summary>
+
+**`tariff`**
+
+Yearly capacity tariff in euro per kW, indexed by effective date (YYYY-MM-DD), as you pay it (incl. VAT). Each month is billed at 1/12 of this times that month's peak, so raising the month's peak by 1 kW costs tariff / 12. Format: {'2026-01-01': 53.25}.
+
+**`minimum power`**
+
+The billed peak never drops below this value (2.5 kW in Flanders), so planning quarters up to it costs nothing.
+
+**`entity month peak`**
+
+Optional: Home Assistant sensor with the highest quarter-hour average reached so far this calendar month (W or kW, read from its unit_of_measurement). That peak is already billed, so the optimizer may plan up to it for free. Without it, the month is assumed to start at the minimum power.
 
 </details>
 
