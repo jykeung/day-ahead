@@ -3126,10 +3126,31 @@
       "x-ui-group": "DAO",
       "x-ui-section": "Your home"
     },
+    "meteo source": {
+      "default": "meteoserver",
+      "description": "Source of the weather forecast",
+      "enum": [
+        "meteoserver",
+        "open-meteo"
+      ],
+      "title": "Meteo Source",
+      "type": "string",
+      "x-help": "Where get_meteo_data fetches temperature and global radiation. 'meteoserver' (default) needs a Meteoserver.nl API key. 'open-meteo' uses the free Open-Meteo API (no key, worldwide coverage, e.g. for users outside the Netherlands).",
+      "x-ui-group": "DAO",
+      "x-ui-section": "Weather"
+    },
     "meteoserver-key": {
-      "$ref": "#/$defs/SecretStr",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SecretStr"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
       "description": "Meteoserver API key (can use !secret)",
-      "x-help": "Meteoserver API access key. Get from Meteoserver.nl account. Use !secret for security. Required for weather forecasts.",
+      "x-help": "Meteoserver API access key. Get from Meteoserver.nl account. Use !secret for security. Required when the meteo source is meteoserver.",
       "x-ui-group": "DAO",
       "x-ui-section": "Weather",
       "x-validation-hint": "Use !secret for API keys",
@@ -3468,9 +3489,6 @@
       "title": "Scheduler"
     }
   },
-  "required": [
-    "meteoserver-key"
-  ],
   "title": "Day Ahead Optimizer Configuration",
   "type": "object",
   "$schema": "http://json-schema.org/draft-07/schema#"

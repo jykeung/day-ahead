@@ -8,7 +8,7 @@ get migrated to this version with no format changes.
 
 from typing import Literal
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, model_validator
 
 from ..models.base import DAOConfigBaseModel, FlexEnum, FlexFloat, SecretStr
 from ..models.dashboard import DashboardConfig
@@ -71,14 +71,30 @@ class ConfigurationV0(DAOConfigBaseModel):
         json_schema_extra={"x-ui-group": "DAO", "x-ui-section": "Your home"},
     )
 
+    # Weather source
+    meteo_source: Literal["meteoserver", "open-meteo"] = Field(
+        default="meteoserver",
+        alias="meteo source",
+        description="Source of the weather forecast",
+        json_schema_extra={
+            "x-ui-group": "DAO",
+            "x-ui-section": "Weather",
+            "x-help": "Where get_meteo_data fetches temperature and global radiation. "
+            "'meteoserver' (default) needs a Meteoserver.nl API key. 'open-meteo' uses "
+            "the free Open-Meteo API (no key, worldwide coverage, e.g. for users "
+            "outside the Netherlands).",
+        },
+    )
+
     # Meteoserver
-    meteoserver_key: SecretStr = Field(
+    meteoserver_key: SecretStr | None = Field(
+        default=None,
         alias="meteoserver-key",
         description="Meteoserver API key (can use !secret)",
         json_schema_extra={
             "x-ui-group": "DAO",
             "x-ui-section": "Weather",
-            "x-help": "Meteoserver API access key. Get from Meteoserver.nl account. Use !secret for security. Required for weather forecasts.",
+            "x-help": "Meteoserver API access key. Get from Meteoserver.nl account. Use !secret for security. Required when the meteo source is meteoserver.",
             "x-validation-hint": "Use !secret for API keys",
         },
     )
@@ -291,3 +307,10 @@ class ConfigurationV0(DAOConfigBaseModel):
         populate_by_name=True,  # Allow both snake_case and aliases
         loc_by_alias=False,
     )
+
+    @model_validator(mode="after")
+    def meteoserver_needs_key(self) -> "ConfigurationV0":
+        """The key is only optional when another meteo source is chosen."""
+        if self.meteo_source == "meteoserver" and self.meteoserver_key is None:
+            raise ValueError("meteoserver-key is required when meteo source is 'meteoserver'")
+        return self
