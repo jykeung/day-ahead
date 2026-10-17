@@ -86,6 +86,22 @@ class ConfigurationV0(DAOConfigBaseModel):
         },
     )
 
+    # Plan export
+    entity_plan: str | None = Field(
+        default=None,
+        alias="entity plan",
+        description="HA entity to publish the whole optimized plan on",
+        json_schema_extra={
+            "x-ui-group": "DAO",
+            "x-ui-section": "Your home",
+            "x-help": "Optional: after each (non-debug) optimization DAO sets this entity "
+            "(e.g. sensor.dao_plan) with the calculation time as state and the full plan in "
+            "the 'plan' attribute: one row per interval with t, pv_forecast, pv, grid, "
+            "battery, load (kW), soc (%) and buy/sell (EUR/kWh). Dashboards can chart it "
+            "directly. The attribute is large; exclude the entity from the recorder.",
+        },
+    )
+
     # Meteoserver
     meteoserver_key: SecretStr | None = Field(
         default=None,

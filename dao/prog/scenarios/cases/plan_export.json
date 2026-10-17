@@ -1,0 +1,49 @@
+[
+  {
+    "id": "plan-export-builds-rows",
+    "description": "Evening spike with \"entity plan\" set - the whole plan is turned into rows without disturbing the solve",
+    "start": "2026-01-14 00:00",
+    "prices": {
+      "cons": [
+        0.18,
+        0.18,
+        0.18,
+        0.18,
+        0.18,
+        0.18,
+        0.18,
+        0.18,
+        0.18,
+        0.18,
+        0.18,
+        0.18,
+        0.18,
+        0.18,
+        0.18,
+        0.18,
+        0.18,
+        0.18,
+        0.85,
+        0.85,
+        0.85,
+        0.18,
+        0.18,
+        0.18
+      ]
+    },
+    "states": {
+      "sensor.ess_battery_soc": "80"
+    },
+    "expect": {
+      "solved": true,
+      "battery_discharges_during": {
+        "start": "18:00",
+        "end": "21:00",
+        "min_kwh": 8.0
+      }
+    },
+    "config_patch": {
+      "entity plan": "sensor.dao_plan"
+    }
+  }
+]
