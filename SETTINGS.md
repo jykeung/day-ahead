@@ -56,6 +56,7 @@
   - [PricePrediction](#priceprediction)
   - [ScheduleEntry](#scheduleentry)
   - [SecretStr](#secretstr)
+  - [SocFloorWindow](#socfloorwindow)
   - [SocPowerLimit](#socpowerlimit)
   - [SolarString](#solarstring)
   - [SolcastConfig](#solcastconfig)
@@ -123,6 +124,8 @@ Configure your home battery storage system for optimal energy management and cos
 | `upper limit` | [FlexInt](#flexint) | No | `100` | Maximum SOC % (can be HA entity) (Unit: `%`) _0-100%, protects battery from overcharge_ |
 | `lower limit` | [FlexInt](#flexint) | No | `20` | Minimum SOC % (can be HA entity) (Unit: `%`) _0-100%, protects battery from deep discharge_ |
 | `optimal lower level` | [FlexInt](#flexint) (optional) | No | `null` | Optimal lower SOC % for cost optimization (Unit: `%`) _Optional, should be >= lower_limit_ |
+| `lower limit schedule` | list[[SocFloorWindow](#socfloorwindow)] | No | `null` | Clock windows with a higher SOC floor than 'lower limit' |
+| `lower limit schedule penalty` | number | No | `0.5` | Penalty cost per % per hour below the scheduled floor (Unit: `euro/%·h`) |
 | `penalty low soc` | number | No | `0.0025` | Penalty cost per % per hour below optimal lower SOC (Unit: `euro/%·h`) |
 | `entity min soc end opt` | [EntityId](#entityid) (optional) | No | `null` | HA entity for minimum SOC at end of optimization period |
 | `entity max soc end opt` | [EntityId](#entityid) (optional) | No | `null` | HA entity for maximum SOC at end of optimization period |
@@ -175,6 +178,14 @@ Minimum State of Charge in percent. Battery will never discharge below this leve
 **`optimal lower level`**
 
 Target SOC level for cost optimization. System will prefer this level over minimum. Supports FlexValue pattern.
+
+**`lower limit schedule`**
+
+Optional: raise the SOC floor inside clock windows, e.g. [{"from": "17:30", "to": "21:00", "limit": 20}] keeps 20% through the evening while 'lower limit' applies the rest of the day. Enforced as a soft constraint (see 'lower limit schedule penalty') so a battery starting below it never makes the plan infeasible.
+
+**`lower limit schedule penalty`**
+
+Cost in euro per %·hour the planned SOC sits below a 'lower limit schedule' window. The default (0.5) is far above any price spread, so the floor only gives way when it cannot be reached.
 
 **`penalty low soc`**
 
@@ -2117,6 +2128,34 @@ Task to run: data collection, optimization, or maintenance
 Secret reference or plain string. Use "!secret key_name" format to reference secrets from secrets.json. Plain strings are also accepted.
 
 *No configuration fields.*
+
+
+### SocFloorWindow
+
+_A clock window in which the battery keeps a higher SOC than its lower limit._
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `from` | string | Yes | — | Window start, local time HH:MM |
+| `to` | string | Yes | — | Window end, local time HH:MM (exclusive) |
+| `limit` | [FlexInt](#flexint) | Yes | — | Minimum SOC % inside the window (can be HA entity) (Unit: `%`) |
+
+<details>
+<summary><b>📖 Field Details</b> (click to expand)</summary>
+
+**`from`**
+
+Start of the window (local clock time, HH:MM). Windows may wrap midnight.
+
+**`to`**
+
+End of the window (local clock time, HH:MM, exclusive). 24:00 means midnight.
+
+**`limit`**
+
+SOC the plan keeps the battery at or above inside the window. Supports FlexValue pattern: use integer or HA entity ID.
+
+</details>
 
 
 ### SocPowerLimit

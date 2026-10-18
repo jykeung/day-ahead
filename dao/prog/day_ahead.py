@@ -29,6 +29,7 @@ from utils import (
 from dao.prog.da_base import DaBase
 from dao.prog.da_report import Report
 from dao.prog.ev_schedule import format_ev_charge_schedule
+from dao.prog.soc_floor import floor_at, parse_hhmm
 
 _libc = ctypes.CDLL(None)
 
@@ -607,6 +608,8 @@ class DaCalc(DaBase):
         upper_limit = []
         opt_low_level = []
         penalty_low_soc = []
+        floor_windows = []  # per battery: (start, end, limit %) clock windows
+        floor_penalty = []
         # pv_dc = []  # pv bruto productie per batterij per uur
         # pv_dc_hour_sum = []
         # pv_from_dc_hour_sum = []
@@ -789,6 +792,16 @@ class DaCalc(DaBase):
 
             # penalty in euro/%.hour
             penalty_low_soc.append(self.battery_options[b].penalty_low_soc)
+
+            windows = []
+            for window in self.battery_options[b].lower_limit_schedule:
+                limit = float(window.limit.resolve(self.ha_getter))
+                windows.append((parse_hhmm(window.start), parse_hhmm(window.end), min(limit, upper_limit[b])))
+                logging.info(
+                    f"SOC floor {self.battery_options[b].name}: {window.start}-{window.end} {limit:.0f}%"
+                )
+            floor_windows.append(windows)
+            floor_penalty.append(self.battery_options[b].lower_limit_schedule_penalty)
 
             if _start_soc is None:
                 try:
@@ -1032,6 +1045,20 @@ class DaCalc(DaBase):
             ]
             for b in range(B)
         ]
+
+        # Scheduled SOC floor: soc[b][u] is the SOC at the start of interval u
+        # (u == U: end of horizon). Soft, so a battery below the floor at the
+        # start of a window can't make the model infeasible; floor_short is
+        # how far a point sits under it.
+        floor_short = [[] for _ in range(B)]
+        for b in range(B):
+            for u in range(1, U + 1):
+                moment = tijd[u - 1] + dt.timedelta(hours=hour_fraction[u - 1])
+                floor = floor_at(moment, lower_limit[b], floor_windows[b])
+                if floor > lower_limit[b]:
+                    short = model.add_var(var_type=CONTINUOUS, lb=0)
+                    model += soc[b][u] + short >= floor
+                    floor_short[b].append((u, short))
 
         soc_low = [
             [
@@ -3401,6 +3428,9 @@ class DaCalc(DaBase):
                 * penalty_low_soc[b]
                 * hour_fraction[u]
                 for u in range(U)
+            ) + xsum(
+                short * floor_penalty[b] * hour_fraction[u - 1]
+                for u, short in floor_short[b]
             )
 
         # switch cost per ev

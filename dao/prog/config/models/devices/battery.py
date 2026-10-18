@@ -44,6 +44,32 @@ class BatteryStage(BaseModel):
     )
 
 
+class SocFloorWindow(BaseModel):
+    """A clock window in which the battery keeps a higher SOC than its lower limit."""
+
+    start: str = Field(
+        alias="from",
+        pattern=r"^([01]?\d|2[0-3]):[0-5]\d$",
+        description="Window start, local time HH:MM",
+        json_schema_extra={"x-help": "Start of the window (local clock time, HH:MM). Windows may wrap midnight."},
+    )
+    end: str = Field(
+        alias="to",
+        pattern=r"^(([01]?\d|2[0-3]):[0-5]\d|24:00)$",
+        description="Window end, local time HH:MM (exclusive)",
+        json_schema_extra={"x-help": "End of the window (local clock time, HH:MM, exclusive). 24:00 means midnight."},
+    )
+    limit: FlexInt = Field(
+        description="Minimum SOC % inside the window (can be HA entity)",
+        json_schema_extra={
+            "x-help": "SOC the plan keeps the battery at or above inside the window. Supports FlexValue pattern: use integer or HA entity ID.",
+            "x-unit": "%",
+        },
+    )
+
+    model_config = ConfigDict(populate_by_name=True, loc_by_alias=False)
+
+
 class SocPowerLimit(BaseModel):
     """A SOC threshold with a corresponding maximum power limit.
 
@@ -141,6 +167,26 @@ class BatteryConfig(BaseModel):
             "x-unit": "%",
             "x-ui-section": "Power Configuration",
             "x-validation-hint": "Optional, should be >= lower_limit",
+        },
+    )
+    lower_limit_schedule: list[SocFloorWindow] = Field(
+        default_factory=list,
+        alias="lower limit schedule",
+        description="Clock windows with a higher SOC floor than 'lower limit'",
+        json_schema_extra={
+            "x-help": "Optional: raise the SOC floor inside clock windows, e.g. [{\"from\": \"17:30\", \"to\": \"21:00\", \"limit\": 20}] keeps 20% through the evening while 'lower limit' applies the rest of the day. Enforced as a soft constraint (see 'lower limit schedule penalty') so a battery starting below it never makes the plan infeasible.",
+            "x-ui-section": "Power Configuration",
+        },
+    )
+    lower_limit_schedule_penalty: float = Field(
+        default=0.5,
+        alias="lower limit schedule penalty",
+        ge=0,
+        description="Penalty cost per % per hour below the scheduled floor",
+        json_schema_extra={
+            "x-help": "Cost in euro per %·hour the planned SOC sits below a 'lower limit schedule' window. The default (0.5) is far above any price spread, so the floor only gives way when it cannot be reached.",
+            "x-unit": "euro/%·h",
+            "x-ui-section": "Power Configuration",
         },
     )
     penalty_low_soc: float = Field(

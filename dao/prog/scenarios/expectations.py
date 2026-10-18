@@ -550,6 +550,31 @@ def _check_battery_flat_during(value: dict, ctx: CaseContext) -> CheckResult:
     return CheckResult("battery_flat_during", ok, detail)
 
 
+def _soc_points(mv, window: range) -> list[float]:
+    """Planned SOC at the start of each interval in the window (soc[b][u])."""
+    if mv is None or not mv.has("soc"):
+        return []
+    return [v for (_b, u), v in mv.items("soc") if u in window]
+
+
+@case_check("battery_soc_at_least_during")
+def _check_battery_soc_at_least_during(value: dict, ctx: CaseContext) -> CheckResult:
+    points = _soc_points(ctx.mv, _window_range(ctx, value))
+    low = min(points, default=float("nan"))
+    ok = bool(points) and low >= value["min_soc"] - 1e-3
+    detail = "" if ok else f"lowest SOC {low:.2f}% in {value['start']}-{value['end']}, wanted >= {value['min_soc']}"
+    return CheckResult("battery_soc_at_least_during", ok, detail)
+
+
+@case_check("battery_soc_dips_below_during")
+def _check_battery_soc_dips_below_during(value: dict, ctx: CaseContext) -> CheckResult:
+    points = _soc_points(ctx.mv, _window_range(ctx, value))
+    low = min(points, default=float("nan"))
+    ok = bool(points) and low <= value["max_soc"] + 1e-3
+    detail = "" if ok else f"lowest SOC {low:.2f}% in {value['start']}-{value['end']}, wanted <= {value['max_soc']}"
+    return CheckResult("battery_soc_dips_below_during", ok, detail)
+
+
 @case_check("no_cross_battery_charge_discharge")
 def _check_no_cross_battery_charge_discharge(value: bool, ctx: CaseContext) -> CheckResult:
     """No interval has one battery charging on the AC side while a

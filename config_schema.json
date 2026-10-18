@@ -67,6 +67,26 @@
           "x-validation-hint": "Optional, should be >= lower_limit",
           "title": "Optimal Lower Level"
         },
+        "lower limit schedule": {
+          "description": "Clock windows with a higher SOC floor than 'lower limit'",
+          "items": {
+            "$ref": "#/$defs/SocFloorWindow"
+          },
+          "title": "Lower Limit Schedule",
+          "type": "array",
+          "x-help": "Optional: raise the SOC floor inside clock windows, e.g. [{\"from\": \"17:30\", \"to\": \"21:00\", \"limit\": 20}] keeps 20% through the evening while 'lower limit' applies the rest of the day. Enforced as a soft constraint (see 'lower limit schedule penalty') so a battery starting below it never makes the plan infeasible.",
+          "x-ui-section": "Power Configuration"
+        },
+        "lower limit schedule penalty": {
+          "default": 0.5,
+          "description": "Penalty cost per % per hour below the scheduled floor",
+          "minimum": 0,
+          "title": "Lower Limit Schedule Penalty",
+          "type": "number",
+          "x-help": "Cost in euro per %·hour the planned SOC sits below a 'lower limit schedule' window. The default (0.5) is far above any price spread, so the floor only gives way when it cannot be reached.",
+          "x-ui-section": "Power Configuration",
+          "x-unit": "euro/%·h"
+        },
         "penalty low soc": {
           "default": 0.0025,
           "description": "Penalty cost per % per hour below optimal lower SOC",
@@ -2764,6 +2784,39 @@
     "SecretStr": {
       "type": "string",
       "x-help": "Secret reference or plain string. Use \"!secret key_name\" format to reference secrets from secrets.json. Plain strings are also accepted."
+    },
+    "SocFloorWindow": {
+      "description": "A clock window in which the battery keeps a higher SOC than its lower limit.",
+      "properties": {
+        "from": {
+          "description": "Window start, local time HH:MM",
+          "pattern": "^([01]?\\d|2[0-3]):[0-5]\\d$",
+          "title": "From",
+          "type": "string",
+          "x-help": "Start of the window (local clock time, HH:MM). Windows may wrap midnight."
+        },
+        "to": {
+          "description": "Window end, local time HH:MM (exclusive)",
+          "pattern": "^(([01]?\\d|2[0-3]):[0-5]\\d|24:00)$",
+          "title": "To",
+          "type": "string",
+          "x-help": "End of the window (local clock time, HH:MM, exclusive). 24:00 means midnight."
+        },
+        "limit": {
+          "$ref": "#/$defs/FlexInt",
+          "description": "Minimum SOC % inside the window (can be HA entity)",
+          "x-help": "SOC the plan keeps the battery at or above inside the window. Supports FlexValue pattern: use integer or HA entity ID.",
+          "x-unit": "%",
+          "title": "Limit"
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "limit"
+      ],
+      "title": "SocFloorWindow",
+      "type": "object"
     },
     "SocPowerLimit": {
       "additionalProperties": false,

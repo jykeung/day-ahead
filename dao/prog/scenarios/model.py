@@ -25,6 +25,8 @@ KNOWN_EXPECT_KEYS = {
     "battery_discharges_during",
     "battery_flat_during",
     "no_cross_battery_charge_discharge",
+    "battery_soc_at_least_during",
+    "battery_soc_dips_below_during",
     "heatpump_runs",
     "machine_runs_in_window",
     "grid_peak_at_most",

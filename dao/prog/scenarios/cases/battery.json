@@ -118,5 +118,33 @@
       "battery_charges_during": { "start": "11:00", "end": "15:00", "min_kwh": 25.0 },
       "battery_discharges_during": { "start": "18:00", "end": "21:00", "min_kwh": 20.0 }
     }
+  },
+  {
+    "id": "battery-floor-schedule-control",
+    "description": "Control for the floor schedule: a 6 kWh battery, dearest 17:00-21:00, still dear until midnight - with no floor it empties into the dearest hours",
+    "start": "2026-01-14 00:00",
+    "prices": { "cons": [0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.6, 0.6, 0.6, 0.6, 0.4, 0.4, 0.4] },
+    "states": { "sensor.ess_battery_soc": "80" },
+    "config_patch": { "battery[0].capacity": 6.0 },
+    "expect": {
+      "solved": true,
+      "battery_soc_dips_below_during": { "start": "17:00", "end": "21:00", "max_soc": 45 }
+    }
+  },
+  {
+    "id": "battery-floor-schedule-evening",
+    "description": "Same with a 50% floor 17:00-21:00: the battery holds 50% through the window, then spends the rest after 21:00",
+    "start": "2026-01-14 00:00",
+    "prices": { "cons": [0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.6, 0.6, 0.6, 0.6, 0.4, 0.4, 0.4] },
+    "states": { "sensor.ess_battery_soc": "80" },
+    "config_patch": {
+      "battery[0].capacity": 6.0,
+      "battery[0].lower_limit_schedule": [{ "start": "17:00", "end": "21:00", "limit": 50 }]
+    },
+    "expect": {
+      "solved": true,
+      "battery_soc_at_least_during": { "start": "17:15", "end": "21:00", "min_soc": 50 },
+      "battery_soc_dips_below_during": { "start": "21:00", "end": "00:00", "max_soc": 45 }
+    }
   }
 ]
