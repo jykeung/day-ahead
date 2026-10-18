@@ -709,7 +709,7 @@ Define power levels and corresponding COP values:
 
 ## Tips
 - Use degree_days_factor to calibrate heat demand for your building
-- Set min_run_length to prevent excessive cycling (2-4h typical)
+- Set min_run_length in hours (1–8, independent of planning interval). The final remainder block can be shorter, and block constraints are relaxed above 80% duty; this does not enforce room comfort.
 - Higher COP = cheaper heating, maximize runtime during high-COP conditions
 - Consider solar production when scheduling heating loads
 

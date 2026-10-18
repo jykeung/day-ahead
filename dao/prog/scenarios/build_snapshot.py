@@ -186,7 +186,8 @@ def _avg_temperature_channel(scenario: Scenario) -> dict:
     """Feeds Meteo.get_avg_temperature(), called by day_ahead.py's heating
     block through calc_graaddagen() once the heat pump is enabled: once
     for "today" and, on a horizon longer than a day, again for "tomorrow".
-    Both calls pass an already-resolved midnight datetime, never None.
+    The degree-day calls pass an already-resolved midnight datetime.
+    On/off adjustment also queries the mean directly without arguments.
     calc_graaddagen resolves its own date=None default to
     datetime.combine(datetime.today(), time.min) before calling
     get_avg_temperature(date), so the call key here must match that
@@ -206,10 +207,12 @@ def _avg_temperature_channel(scenario: Scenario) -> dict:
     avg_temp = sum(hourly) / len(hourly)
     start = parse_start(scenario.start)
     today_midnight = dt.datetime.combine(start.date(), dt.time())
-    channel = {_call_key((today_midnight,), {}): avg_temp}
+    channel = {_call_key((today_midnight,), {}): avg_temp,
+               _call_key((), {}): avg_temp}
     if scenario.horizon_hours > 24:
         tomorrow_midnight = dt.datetime.combine(start.date() + dt.timedelta(days=1), dt.time())
         channel[_call_key((tomorrow_midnight,), {})] = avg_temp
+        channel[_call_key((), {"date": tomorrow_midnight})] = avg_temp
     return channel
 
 

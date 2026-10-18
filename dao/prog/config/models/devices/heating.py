@@ -165,12 +165,12 @@ class HeatingEnabled(BaseModel):
         default=1,
         alias="min run length",
         ge=1,
-        description="Minimum run length in time intervals",
+        description="Requested heating block length in hours (clamped to 1–8)",
         json_schema_extra={
-            "x-help": "Minimum number of consecutive time intervals heat pump must run once started. Prevents excessive on/off cycling which reduces efficiency and equipment life. Typical: 2-4 intervals (2-4 hours).",
-            "x-unit": "intervals",
+            "x-help": "Requested consecutive heating hours, independent of the planning interval; clamped to 1–8 hours. The final remainder block may be shorter. Block constraints are relaxed above 80% duty. This does not enforce room comfort.",
+            "x-unit": "h",
             "x-ui-section": "Configuration",
-            "x-validation-hint": "Must be >= 1, typically 2-4 for 1h intervals",
+            "x-validation-hint": "Must be >= 1; values above 8 are clamped to 8 hours",
         },
     )
     entity_heat_produced: EntityId | None = Field(

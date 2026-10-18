@@ -2401,8 +2401,8 @@ class DaCalc(DaBase):
                 self.heating_options.min_run_length
             )  # Minimum run lengte hp in uren - 1h als niet gedefinieerd
             min_run_length = min(
-                max(min_run_length, 1), 5
-            )  # Alleen waarde tussen 1 en 5 uur mogelijk
+                max(min_run_length, 1), 8
+            )  # Alleen waarde tussen 1 en 8 uur mogelijk
             logging.info(f"Minimale runlengte {min_run_length} uur")
 
             # een of meer intervallen minder als boiler via wp gaat
