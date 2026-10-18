@@ -2,10 +2,12 @@
 Battery configuration models.
 """
 
+import re
+
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator
 
-from ..base import EntityId, FlexFloat, FlexInt
+from ..base import EntityId, FlexFloat, FlexInt, FlexStr
 from .solar import SolarConfig
 
 
@@ -47,18 +49,24 @@ class BatteryStage(BaseModel):
 class SocFloorWindow(BaseModel):
     """A clock window in which the battery keeps a higher SOC than its lower limit."""
 
-    start: str = Field(
+    start: FlexStr = Field(
         alias="from",
-        pattern=r"^([01]?\d|2[0-3]):[0-5]\d$",
-        description="Window start, local time HH:MM",
-        json_schema_extra={"x-help": "Start of the window (local clock time, HH:MM). Windows may wrap midnight."},
+        description="Window start, local time HH:MM (can be HA entity)",
+        json_schema_extra={"x-help": "Start of the window (local clock time, HH:MM), or an HA entity such as a time-only input_datetime. Windows may wrap midnight."},
     )
-    end: str = Field(
+    end: FlexStr = Field(
         alias="to",
-        pattern=r"^(([01]?\d|2[0-3]):[0-5]\d|24:00)$",
-        description="Window end, local time HH:MM (exclusive)",
-        json_schema_extra={"x-help": "End of the window (local clock time, HH:MM, exclusive). 24:00 means midnight."},
+        description="Window end, local time HH:MM, exclusive (can be HA entity)",
+        json_schema_extra={"x-help": "End of the window (local clock time, HH:MM, exclusive; 24:00 = midnight), or an HA entity such as a time-only input_datetime."},
     )
+
+    @field_validator("start", "end")
+    @classmethod
+    def _clock_or_entity(cls, v):
+        value = v.value if isinstance(v, FlexStr) else v
+        if FlexStr.is_entity_id(value) or re.fullmatch(r"([01]?\d|2[0-3]):[0-5]\d(:[0-5]\d)?|24:00", str(value)):
+            return v
+        raise ValueError(f"{value!r} is neither HH:MM nor an HA entity id")
     limit: FlexInt = Field(
         description="Minimum SOC % inside the window (can be HA entity)",
         json_schema_extra={

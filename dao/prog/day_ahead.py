@@ -796,9 +796,11 @@ class DaCalc(DaBase):
             windows = []
             for window in self.battery_options[b].lower_limit_schedule:
                 limit = float(window.limit.resolve(self.ha_getter))
-                windows.append((parse_hhmm(window.start), parse_hhmm(window.end), min(limit, upper_limit[b])))
+                start = window.start.resolve(self.ha_getter)
+                end = window.end.resolve(self.ha_getter)
+                windows.append((parse_hhmm(start), parse_hhmm(end), min(limit, upper_limit[b])))
                 logging.info(
-                    f"SOC floor {self.battery_options[b].name}: {window.start}-{window.end} {limit:.0f}%"
+                    f"SOC floor {self.battery_options[b].name}: {start[:5]}-{end[:5]} {limit:.0f}%"
                 )
             floor_windows.append(windows)
             floor_penalty.append(self.battery_options[b].lower_limit_schedule_penalty)

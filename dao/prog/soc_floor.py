@@ -14,8 +14,9 @@ from collections.abc import Iterable
 
 
 def parse_hhmm(value: str) -> dt.time:
-    """'17:30' -> time(17, 30); '24:00' is accepted as end of day."""
-    hours, minutes = (int(part) for part in str(value).strip().split(":"))
+    """'17:30' or '17:30:00' (a time-only input_datetime's state) -> time(17, 30);
+    '24:00' is accepted as end of day."""
+    hours, minutes = (int(part) for part in str(value).strip().split(":")[:2])
     if hours == 24 and minutes == 0:
         return dt.time.max
     return dt.time(hours, minutes)
