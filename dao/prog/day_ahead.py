@@ -610,6 +610,7 @@ class DaCalc(DaBase):
         penalty_low_soc = []
         floor_windows = []  # per battery: (start, end, limit %) clock windows
         floor_penalty = []
+        end_value = []  # per battery: (euro/kWh, kWh) for energy left at the end, or None
         # pv_dc = []  # pv bruto productie per batterij per uur
         # pv_dc_hour_sum = []
         # pv_from_dc_hour_sum = []
@@ -804,6 +805,18 @@ class DaCalc(DaBase):
                 )
             floor_windows.append(windows)
             floor_penalty.append(self.battery_options[b].lower_limit_schedule_penalty)
+
+            _end = self.battery_options[b].end_value
+            if _end is None:
+                end_value.append(None)
+            else:
+                end_price = float(_end.price.resolve(self.ha_getter))
+                end_kwh = max(0.0, float(_end.energy.resolve(self.ha_getter)))
+                end_value.append((end_price, end_kwh))
+                logging.info(
+                    f"End value {self.battery_options[b].name}: first {end_kwh:.2f} kWh "
+                    f"left at the end worth {end_price:.4f} euro/kWh"
+                )
 
             if _start_soc is None:
                 try:
@@ -3451,6 +3464,29 @@ class DaCalc(DaBase):
         else:
             p_bat = sum(pt) / U
 
+        # Energy left at the end of the plan (above the optimal lower level) in AC
+        # kWh. By default every kWh of it is worth p_bat. With an 'end value' the
+        # first end_kwh are worth end_price instead (less the wear of discharging
+        # them later) and the rest p_bat: two tiers, the dearer one filling first,
+        # so the plan only spends that energy before the horizon ends when it pays
+        # more, and only buys it when the price after losses and wear is lower.
+        end_ac = [
+            soc_mid[b][U] * one_soc[b] * eff_bat_to_dc[b] * avg_eff_dc_to_ac[b]
+            for b in range(B)
+        ]
+        end_worth = []
+        for b in range(B):
+            if end_value[b] is None:
+                end_worth.append(end_ac[b] * p_bat)
+                continue
+            end_price, end_kwh = end_value[b]
+            first = model.add_var(var_type=CONTINUOUS, lb=0, ub=end_kwh)
+            rest = model.add_var(var_type=CONTINUOUS, lb=0)
+            model += first + rest == end_ac[b]
+            end_worth.append(
+                first * (end_price - kwh_cycle_cost[b] / avg_eff_dc_to_ac[b]) + rest * p_bat
+            )
+
         # alles in kWh * prijs = kosten in euro
         model += cost == (
             xsum(c_l[u] * pl[u] - c_t[u] * pt[u] for u in range(U))
@@ -3458,11 +3494,8 @@ class DaCalc(DaBase):
             + xsum(cycle_cost[b] + penalty_cost[b] for b in range(B))
             + xsum(switch_cost[e] + low_soc_penalty[e] for e in range(EV))
             + xsum(
-                (soc_mid[b][0] - soc_mid[b][U])
-                * one_soc[b]
-                * eff_bat_to_dc[b]
-                * avg_eff_dc_to_ac[b]
-                * p_bat
+                soc_mid[b][0] * one_soc[b] * eff_bat_to_dc[b] * avg_eff_dc_to_ac[b] * p_bat
+                - end_worth[b]
                 for b in range(B)
             )
             # waarde energie boiler
@@ -4011,12 +4044,10 @@ class DaCalc(DaBase):
         total_cycle_cost = 0
         total_penalty_cost = 0
         for b in range(B):
+            # same terms as the objective, so an 'end value' is reported as planned
             battery_storage += (
-                (soc_mid[b][0].x - soc_mid[b][U].x)
-                * one_soc[b]
-                * eff_bat_to_dc[b]
-                * avg_eff_dc_to_ac[b]
-                * p_bat
+                soc_mid[b][0].x * one_soc[b] * eff_bat_to_dc[b] * avg_eff_dc_to_ac[b] * p_bat
+                - end_worth[b].x
             )
             total_cycle_cost += cycle_cost[b].x
             total_penalty_cost += penalty_cost[b].x

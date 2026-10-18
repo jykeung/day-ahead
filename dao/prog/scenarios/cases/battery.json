@@ -146,5 +146,75 @@
       "battery_soc_at_least_during": { "start": "17:15", "end": "21:00", "min_soc": 50 },
       "battery_soc_dips_below_during": { "start": "21:00", "end": "00:00", "max_soc": 45 }
     }
+  },
+  {
+    "id": "battery-end-value-control",
+    "description": "No end value: energy left at the end is only worth the average injection price, so a 0.35 evening empties the battery to its lower limit before midnight",
+    "start": "2026-01-14 00:00",
+    "prices": {
+      "cons": [0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20,
+               0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.35, 0.35, 0.35]
+    },
+    "states": { "sensor.ess_battery_soc": "60" },
+    "config_patch": { "battery[0].capacity": 6.0 },
+    "expect": {
+      "solved": true,
+      "battery_discharges_during": { "start": "21:00", "end": "00:00", "min_kwh": 1.0 },
+      "battery_soc_dips_below_during": { "start": "23:45", "end": "00:00", "max_soc": 30 }
+    }
+  },
+  {
+    "id": "battery-end-value-holds",
+    "description": "Same evening, but the first 3 kWh left at the end are worth 0.60 (tomorrow morning): the plan ends with them still stored and only sells the energy beyond them at 0.35",
+    "start": "2026-01-14 00:00",
+    "prices": {
+      "cons": [0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20,
+               0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.35, 0.35, 0.35]
+    },
+    "states": { "sensor.ess_battery_soc": "60" },
+    "config_patch": {
+      "battery[0].capacity": 6.0,
+      "battery[0].end_value": { "price": 0.6, "energy": 3.0 }
+    },
+    "expect": {
+      "solved": true,
+      "battery_soc_at_least_during": { "start": "23:45", "end": "00:00", "min_soc": 70 }
+    }
+  },
+  {
+    "id": "battery-end-value-no-uneconomic-charge",
+    "description": "Flat 0.30 all day and an end value of 0.33: after charge/discharge losses and wear a kWh bought at 0.30 is worth less than 0.33, so nothing is bought to fill it",
+    "start": "2026-01-14 00:00",
+    "prices": {
+      "cons": [0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30,
+               0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30]
+    },
+    "states": { "sensor.ess_battery_soc": "30" },
+    "config_patch": {
+      "battery[0].capacity": 6.0,
+      "battery[0].end_value": { "price": 0.33, "energy": 3.0 }
+    },
+    "expect": {
+      "solved": true,
+      "battery_flat_during": { "start": "00:00", "end": "00:00", "max_kwh": 0.05 }
+    }
+  },
+  {
+    "id": "battery-end-value-charges-when-cheap",
+    "description": "0.10 at night, 0.30 otherwise, end value 0.50: buying at 0.10 pays even after losses and wear, so the battery charges in the cheap hours to carry energy past the horizon",
+    "start": "2026-01-14 00:00",
+    "prices": {
+      "cons": [0.30, 0.30, 0.10, 0.10, 0.10, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30,
+               0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30]
+    },
+    "states": { "sensor.ess_battery_soc": "30" },
+    "config_patch": {
+      "battery[0].capacity": 6.0,
+      "battery[0].end_value": { "price": 0.5, "energy": 3.0 }
+    },
+    "expect": {
+      "solved": true,
+      "battery_charges_during": { "start": "02:00", "end": "05:00", "min_kwh": 2.0 }
+    }
   }
 ]

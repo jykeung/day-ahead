@@ -78,6 +78,34 @@ class SocFloorWindow(BaseModel):
     model_config = ConfigDict(populate_by_name=True, loc_by_alias=False)
 
 
+class BatteryEndValue(BaseModel):
+    """What energy left in the battery at the end of the plan is worth.
+
+    The plan stops at the last published price, but the battery does not: what
+    it holds then is spent after the horizon. The first ``energy`` kWh (AC) are
+    worth ``price`` each - typically what they will save in the next morning's
+    expensive hours before solar takes over - and anything beyond that is worth
+    the average injection price, as without this setting.
+    """
+
+    price: FlexFloat = Field(
+        description="Value of the first kWh left at the end (euro/kWh, can be HA entity)",
+        json_schema_extra={
+            "x-help": "Euro per AC kWh for energy above the lower limit at the end of the plan, up to 'energy'. Use the price this energy will displace after the horizon, e.g. the next morning's buy price. Wear for the later discharge is subtracted. Supports FlexValue pattern: use a number or HA entity ID.",
+            "x-unit": "euro/kWh",
+        },
+    )
+    energy: FlexFloat = Field(
+        description="How many kWh (AC) get that value (can be HA entity)",
+        json_schema_extra={
+            "x-help": "AC kWh valued at 'price', e.g. what the house uses before solar takes over the next day. Energy beyond it is valued at the average injection price. Supports FlexValue pattern: use a number or HA entity ID.",
+            "x-unit": "kWh",
+        },
+    )
+
+    model_config = ConfigDict(populate_by_name=True, loc_by_alias=False)
+
+
 class SocPowerLimit(BaseModel):
     """A SOC threshold with a corresponding maximum power limit.
 
@@ -194,6 +222,15 @@ class BatteryConfig(BaseModel):
         json_schema_extra={
             "x-help": "Cost in euro per %·hour the planned SOC sits below a 'lower limit schedule' window. The default (0.5) is far above any price spread, so the floor only gives way when it cannot be reached.",
             "x-unit": "euro/%·h",
+            "x-ui-section": "Power Configuration",
+        },
+    )
+    end_value: BatteryEndValue | None = Field(
+        default=None,
+        alias="end value",
+        description="Value of energy left at the end of the plan",
+        json_schema_extra={
+            "x-help": "Optional: {\"price\": ..., \"energy\": ...}. Without it, energy left at the end is worth the average injection price, so the plan drains the battery by its last slot whenever any price beats that. With it, the first 'energy' kWh are worth 'price', so the plan only spends them before the horizon ends when that pays more, and only charges for them when the price after losses and wear is lower.",
             "x-ui-section": "Power Configuration",
         },
     )

@@ -42,6 +42,7 @@
 - [HASS](#hass)
   - [🏠 HomeAssistantConfig](#homeassistantconfig)
 - [Other](#other)
+  - [BatteryEndValue](#batteryendvalue)
   - [BatteryStage](#batterystage)
   - [CapacityTariffConfig](#capacitytariffconfig)
   - [EVChargeScheduler](#evchargescheduler)
@@ -127,6 +128,7 @@ Configure your home battery storage system for optimal energy management and cos
 | `optimal lower level` | [FlexInt](#flexint) (optional) | No | `null` | Optimal lower SOC % for cost optimization (Unit: `%`) _Optional, should be >= lower_limit_ |
 | `lower limit schedule` | list[[SocFloorWindow](#socfloorwindow)] | No | `null` | Clock windows with a higher SOC floor than 'lower limit' |
 | `lower limit schedule penalty` | number | No | `0.5` | Penalty cost per % per hour below the scheduled floor (Unit: `euro/%·h`) |
+| `end value` | [BatteryEndValue](#batteryendvalue) (optional) | No | `null` | Value of energy left at the end of the plan |
 | `penalty low soc` | number | No | `0.0025` | Penalty cost per % per hour below optimal lower SOC (Unit: `euro/%·h`) |
 | `entity min soc end opt` | [EntityId](#entityid) (optional) | No | `null` | HA entity for minimum SOC at end of optimization period |
 | `entity max soc end opt` | [EntityId](#entityid) (optional) | No | `null` | HA entity for maximum SOC at end of optimization period |
@@ -187,6 +189,10 @@ Optional: raise the SOC floor inside clock windows, e.g. [{"from": "17:30", "to"
 **`lower limit schedule penalty`**
 
 Cost in euro per %·hour the planned SOC sits below a 'lower limit schedule' window. The default (0.5) is far above any price spread, so the floor only gives way when it cannot be reached.
+
+**`end value`**
+
+Optional: {"price": ..., "energy": ...}. Without it, energy left at the end is worth the average injection price, so the plan drains the battery by its last slot whenever any price beats that. With it, the first 'energy' kWh are worth 'price', so the plan only spends them before the horizon ends when that pays more, and only charges for them when the price after losses and wear is lower.
 
 **`penalty low soc`**
 
@@ -1876,6 +1882,35 @@ Protocol for Home Assistant API. 'http' for local access, 'https' for SSL/TLS. U
 ## Other
 
 <a id="other"></a>
+
+### BatteryEndValue
+
+_What energy left in the battery at the end of the plan is worth.
+
+The plan stops at the last published price, but the battery does not: what
+it holds then is spent after the horizon. The first ``energy`` kWh (AC) are
+worth ``price`` each - typically what they will save in the next morning's
+expensive hours before solar takes over - and anything beyond that is worth
+the average injection price, as without this setting._
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `price` | [FlexFloat](#flexfloat) | Yes | — | Value of the first kWh left at the end (euro/kWh, can be HA entity) (Unit: `euro/kWh`) |
+| `energy` | [FlexFloat](#flexfloat) | Yes | — | How many kWh (AC) get that value (can be HA entity) (Unit: `kWh`) |
+
+<details>
+<summary><b>📖 Field Details</b> (click to expand)</summary>
+
+**`price`**
+
+Euro per AC kWh for energy above the lower limit at the end of the plan, up to 'energy'. Use the price this energy will displace after the horizon, e.g. the next morning's buy price. Wear for the later discharge is subtracted. Supports FlexValue pattern: use a number or HA entity ID.
+
+**`energy`**
+
+AC kWh valued at 'price', e.g. what the house uses before solar takes over the next day. Energy beyond it is valued at the average injection price. Supports FlexValue pattern: use a number or HA entity ID.
+
+</details>
+
 
 ### BatteryStage
 

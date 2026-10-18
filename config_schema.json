@@ -87,6 +87,21 @@
           "x-ui-section": "Power Configuration",
           "x-unit": "euro/%·h"
         },
+        "end value": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BatteryEndValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Value of energy left at the end of the plan",
+          "x-help": "Optional: {\"price\": ..., \"energy\": ...}. Without it, energy left at the end is worth the average injection price, so the plan drains the battery by its last slot whenever any price beats that. With it, the first 'energy' kWh are worth 'price', so the plan only spends them before the horizon ends when that pays more, and only charges for them when the price after losses and wear is lower.",
+          "x-ui-section": "Power Configuration",
+          "title": "End Value"
+        },
         "penalty low soc": {
           "default": 0.0025,
           "description": "Penalty cost per % per hour below optimal lower SOC",
@@ -467,6 +482,31 @@
       "x-icon": "battery-charging",
       "x-order": 1,
       "x-ui-group": "Energy"
+    },
+    "BatteryEndValue": {
+      "description": "What energy left in the battery at the end of the plan is worth.\n\nThe plan stops at the last published price, but the battery does not: what\nit holds then is spent after the horizon. The first ``energy`` kWh (AC) are\nworth ``price`` each - typically what they will save in the next morning's\nexpensive hours before solar takes over - and anything beyond that is worth\nthe average injection price, as without this setting.",
+      "properties": {
+        "price": {
+          "$ref": "#/$defs/FlexFloat",
+          "description": "Value of the first kWh left at the end (euro/kWh, can be HA entity)",
+          "x-help": "Euro per AC kWh for energy above the lower limit at the end of the plan, up to 'energy'. Use the price this energy will displace after the horizon, e.g. the next morning's buy price. Wear for the later discharge is subtracted. Supports FlexValue pattern: use a number or HA entity ID.",
+          "x-unit": "euro/kWh",
+          "title": "Price"
+        },
+        "energy": {
+          "$ref": "#/$defs/FlexFloat",
+          "description": "How many kWh (AC) get that value (can be HA entity)",
+          "x-help": "AC kWh valued at 'price', e.g. what the house uses before solar takes over the next day. Energy beyond it is valued at the average injection price. Supports FlexValue pattern: use a number or HA entity ID.",
+          "x-unit": "kWh",
+          "title": "Energy"
+        }
+      },
+      "required": [
+        "price",
+        "energy"
+      ],
+      "title": "BatteryEndValue",
+      "type": "object"
     },
     "BatteryStage": {
       "additionalProperties": true,
