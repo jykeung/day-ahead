@@ -1334,6 +1334,20 @@
       ],
       "x-help": "FlexValue enables dynamic configuration using Home Assistant entities. Instead of hardcoding values, reference HA entities that can change at runtime. System automatically detects and resolves entity IDs."
     },
+    "FlexStr": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "boolean"
+        }
+      ],
+      "x-help": "FlexValue enables dynamic configuration using Home Assistant entities. Instead of hardcoding values, reference HA entities that can change at runtime. System automatically detects and resolves entity IDs."
+    },
     "GraphicsConfig": {
       "additionalProperties": true,
       "description": "Graphics and visualization settings.",
@@ -2789,18 +2803,16 @@
       "description": "A clock window in which the battery keeps a higher SOC than its lower limit.",
       "properties": {
         "from": {
-          "description": "Window start, local time HH:MM",
-          "pattern": "^([01]?\\d|2[0-3]):[0-5]\\d$",
-          "title": "From",
-          "type": "string",
-          "x-help": "Start of the window (local clock time, HH:MM). Windows may wrap midnight."
+          "$ref": "#/$defs/FlexStr",
+          "description": "Window start, local time HH:MM (can be HA entity)",
+          "x-help": "Start of the window (local clock time, HH:MM), or an HA entity such as a time-only input_datetime. Windows may wrap midnight.",
+          "title": "From"
         },
         "to": {
-          "description": "Window end, local time HH:MM (exclusive)",
-          "pattern": "^(([01]?\\d|2[0-3]):[0-5]\\d|24:00)$",
-          "title": "To",
-          "type": "string",
-          "x-help": "End of the window (local clock time, HH:MM, exclusive). 24:00 means midnight."
+          "$ref": "#/$defs/FlexStr",
+          "description": "Window end, local time HH:MM, exclusive (can be HA entity)",
+          "x-help": "End of the window (local clock time, HH:MM, exclusive; 24:00 = midnight), or an HA entity such as a time-only input_datetime.",
+          "title": "To"
         },
         "limit": {
           "$ref": "#/$defs/FlexInt",

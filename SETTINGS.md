@@ -51,6 +51,7 @@
   - [FlexEnum](#flexenum)
   - [FlexFloat](#flexfloat)
   - [FlexInt](#flexint)
+  - [FlexStr](#flexstr)
   - [HeatingStage](#heatingstage)
   - [MachineProgram](#machineprogram)
   - [PricePrediction](#priceprediction)
@@ -2019,6 +2020,13 @@ FlexValue enables dynamic configuration using Home Assistant entities. Instead o
 *No configuration fields.*
 
 
+### Unknown
+
+FlexValue enables dynamic configuration using Home Assistant entities. Instead of hardcoding values, reference HA entities that can change at runtime. System automatically detects and resolves entity IDs.
+
+*No configuration fields.*
+
+
 ### HeatingStage
 
 _Single heating stage with power and COP._
@@ -2136,8 +2144,8 @@ _A clock window in which the battery keeps a higher SOC than its lower limit._
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `from` | string | Yes | — | Window start, local time HH:MM |
-| `to` | string | Yes | — | Window end, local time HH:MM (exclusive) |
+| `from` | [FlexStr](#flexstr) | Yes | — | Window start, local time HH:MM (can be HA entity) |
+| `to` | [FlexStr](#flexstr) | Yes | — | Window end, local time HH:MM, exclusive (can be HA entity) |
 | `limit` | [FlexInt](#flexint) | Yes | — | Minimum SOC % inside the window (can be HA entity) (Unit: `%`) |
 
 <details>
@@ -2145,11 +2153,11 @@ _A clock window in which the battery keeps a higher SOC than its lower limit._
 
 **`from`**
 
-Start of the window (local clock time, HH:MM). Windows may wrap midnight.
+Start of the window (local clock time, HH:MM), or an HA entity such as a time-only input_datetime. Windows may wrap midnight.
 
 **`to`**
 
-End of the window (local clock time, HH:MM, exclusive). 24:00 means midnight.
+End of the window (local clock time, HH:MM, exclusive; 24:00 = midnight), or an HA entity such as a time-only input_datetime.
 
 **`limit`**
 
