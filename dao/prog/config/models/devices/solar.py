@@ -106,6 +106,28 @@ class SolcastConfig(BaseModel):
             "P10 (10% chance of less); pv_estimate90 the optimistic P90.",
         },
     )
+    caution: float = Field(
+        default=0.0,
+        ge=0,
+        le=1,
+        description="How far to move the forecast towards the pessimistic P10",
+        json_schema_extra={
+            "x-help": "0 plans with the chosen estimate, 1 with pv_estimate10, 0.5 midway. "
+            "Storing solar that turns out not to be needed only costs the round-trip "
+            "loss; a grey day the plan did not expect costs the full buy price.",
+        },
+    )
+    entity_measured_today: EntityId | None = Field(
+        default=None,
+        alias="entity measured today",
+        description="Sensor with today's measured yield in kWh (resets at midnight)",
+        json_schema_extra={
+            "x-help": "Optional: scales the rest of today's forecast by measured / "
+            "forecast energy since midnight, eased in over the first ~2 kWh. Skipped "
+            "while the array is curtailed via entity pv limit.",
+            "x-ui-widget-filter": "sensor",
+        },
+    )
     attribute: str = Field(
         default="detailedForecast",
         description="Attribute holding the 30-minute periods",
