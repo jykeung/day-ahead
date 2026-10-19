@@ -657,7 +657,14 @@ class DaBase(hass.Hass):
         the own prediction's interval grid; every interval Solcast fully covers
         gets the Solcast energy, the rest keeps the own prediction.
         """
-        from dao.prog.solcast import interval_energy, parse_periods
+        from dao.prog.solcast import (
+            blend_periods,
+            interval_energy,
+            local_now,
+            parse_periods,
+            same_day_ratio,
+            scale_rest_of_day,
+        )
 
         cfg = solar_option.solcast
         result = self.calc_solar_predictions(
@@ -679,8 +686,27 @@ class DaBase(hass.Hass):
                 continue
             forecasts.extend(attributes.get(cfg.attribute) or [])
         periods = parse_periods(forecasts, cfg.estimate, time_zone)
-        if solar_option.max_power:
-            periods = [(s, e, min(kw, solar_option.max_power)) for s, e, kw in periods]
+        if cfg.caution > 0:
+            periods = blend_periods(
+                periods, parse_periods(forecasts, "pv_estimate10", time_zone), cfg.caution
+            )
+
+        def cap(periods):
+            if not solar_option.max_power:
+                return periods
+            return [(s, e, min(kw, solar_option.max_power)) for s, e, kw in periods]
+
+        periods = cap(periods)
+        ratio = 1.0
+        if cfg.entity_measured_today and not self._pv_curtailed(solar_option):
+            try:
+                measured = float(self.get_state(cfg.entity_measured_today).state)
+            except Exception as ex:
+                logging.warning(f"Solcast-correctie: {cfg.entity_measured_today} niet leesbaar: {ex}")
+            else:
+                now = local_now(time_zone)
+                ratio = same_day_ratio(periods, now, measured)
+                periods = cap(scale_rest_of_day(periods, now, ratio))
 
         from_solcast = 0
         for i, tijd in enumerate(result["tijd"]):
@@ -694,9 +720,21 @@ class DaBase(hass.Hass):
                 from_solcast += 1
         logging.info(
             f"{solar_option.name}: {from_solcast} van {len(result)} intervallen uit "
-            f"Solcast ({cfg.estimate}), de rest uit de eigen voorspelling"
+            f"Solcast ({cfg.estimate}, voorzichtigheid {cfg.caution:.2f}, "
+            f"correctie vandaag x{ratio:.2f}), de rest uit de eigen voorspelling"
         )
         return result
+
+    def _pv_curtailed(self, solar_option) -> bool:
+        """True while DAO limits this array: measured yield then says nothing about the sky."""
+        entity = getattr(solar_option, "entity_pv_limit", None)
+        if not entity:
+            return False
+        full = solar_option.max_power or getattr(solar_option, "capacity", None)
+        try:
+            return full is not None and float(self.get_state(entity).state) < full - 0.05
+        except Exception:
+            return False
 
     @staticmethod
     def train_ml_predictions():
